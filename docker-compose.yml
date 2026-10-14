@@ -1,7 +1,17 @@
 services:
+  web:
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    ports: ["${WEB_PORT:-8080}:8080"]
+    depends_on: [api]
+    restart: unless-stopped
+  api:
+    build: { context: ./apps/api, dockerfile: Dockerfile }
+    env_file: ${ENV_FILE:-.env}
+    depends_on: [postgres]
+    restart: unless-stopped
   postgres:
     image: postgres:16-alpine
-    environment: { POSTGRES_DB: uproxx, POSTGRES_USER: uproxx, POSTGRES_PASSWORD: uproxx }
-    ports: ["5432:5432"]
+    environment: { POSTGRES_DB: "${POSTGRES_DB:-uproxx}", POSTGRES_USER: "${POSTGRES_USER:-uproxx}", POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}" }
     volumes: [postgres_data:/var/lib/postgresql/data]
+    restart: unless-stopped
 volumes: { postgres_data: {} }
