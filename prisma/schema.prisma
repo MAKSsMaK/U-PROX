@@ -1,0 +1,9 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
+enum Role { ADMIN SECURITY_OPERATOR TECHNICIAN VIEWER }
+model User { id String @id @default(cuid()); email String @unique; passwordHash String; role Role; auditLogs AuditLog[] }
+model Building { id String @id @default(cuid()); name String; floors Floor[] }
+model Floor { id String @id @default(cuid()); name String; buildingId String; building Building @relation(fields:[buildingId],references:[id]); plan FloorPlan? }
+model FloorPlan { id String @id @default(cuid()); imageUrl String; floorId String @unique; floor Floor @relation(fields:[floorId],references:[id]); elements MapElement[] }
+model MapElement { id String @id @default(cuid()); floorPlanId String; floorPlan FloorPlan @relation(fields:[floorPlanId],references:[id]); type String; xPercent Float; yPercent Float; widthPercent Float; heightPercent Float; rotation Float @default(0); linkedEntityType String; linkedEntityToken String; label String; visible Boolean @default(true) }
+model AuditLog { id String @id @default(cuid()); userId String; user User @relation(fields:[userId],references:[id]); action String; targetToken String; result String; uproxxResponse Json?; createdAt DateTime @default(now()) }
