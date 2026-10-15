@@ -1,3 +1,61 @@
-export type NormalizedEvent={id:string;timestamp:Date;person?:{token:string;name:string;department?:string};device:{token:string;name:string};accessPoint:{token:string;name:string;direction?:'IN'|'OUT'};eventCode:string;eventName:string;result:'ALLOWED'|'DENIED'|'ALARM'|'UNKNOWN';cardCode?:string;raw:unknown};
-export interface UproxxClient { authenticate():Promise<void>; logout():Promise<void>; getEvents(since?:Date):Promise<NormalizedEvent[]>; getDevices():Promise<unknown[]>; getDoors():Promise<unknown[]>; accessIn(token:string):Promise<void>; accessOut(token:string):Promise<void>; activateOutput(token:string):Promise<void>; deactivateOutput(token:string):Promise<void>; healthCheck():Promise<boolean> }
-export class RestUproxxClient implements UproxxClient { private unsupported(name:string):never{throw new Error(`TODO U-PROX endpoint mapping required for ${name}; verify against deployed API documentation.`)} async authenticate():Promise<void>{this.unsupported('Authenticate')}async logout():Promise<void>{this.unsupported('logout')}async getEvents(_since?:Date):Promise<NormalizedEvent[]>{this.unsupported('EventGetList')}async getDevices():Promise<unknown[]>{this.unsupported('device enumeration')}async getDoors():Promise<unknown[]>{this.unsupported('door enumeration')}async accessIn(_t:string):Promise<void>{this.unsupported('DoorAccessIn')}async accessOut(_t:string):Promise<void>{this.unsupported('DoorAccessOut')}async activateOutput(_t:string):Promise<void>{this.unsupported('output activation')}async deactivateOutput(_t:string):Promise<void>{this.unsupported('output deactivation')}async healthCheck():Promise<boolean>{return false} }
+export type NormalizedEvent = {
+  id: string;
+  timestamp: Date;
+  person?: { token: string; name: string; department?: string };
+  device: { token: string; name: string };
+  accessPoint: { token: string; name: string; direction?: 'IN' | 'OUT' };
+  eventCode: string;
+  eventName: string;
+  result: 'ALLOWED' | 'DENIED' | 'ALARM' | 'UNKNOWN';
+  cardCode?: string;
+  raw: unknown;
+};
+export interface UproxxClient {
+  authenticate(): Promise<void>;
+  logout(): Promise<void>;
+  getEvents(since?: Date): Promise<NormalizedEvent[]>;
+  getDevices(): Promise<unknown[]>;
+  getDoors(): Promise<unknown[]>;
+  accessIn(token: string): Promise<void>;
+  accessOut(token: string): Promise<void>;
+  activateOutput(token: string): Promise<void>;
+  deactivateOutput(token: string): Promise<void>;
+  healthCheck(): Promise<boolean>;
+}
+export class RestUproxxClient implements UproxxClient {
+  private unsupported(name: string): never {
+    throw new Error(
+      `TODO U-PROX endpoint mapping required for ${name}; verify against deployed API documentation.`,
+    );
+  }
+  async authenticate(): Promise<void> {
+    this.unsupported('Authenticate');
+  }
+  async logout(): Promise<void> {
+    this.unsupported('logout');
+  }
+  async getEvents(_since?: Date): Promise<NormalizedEvent[]> {
+    this.unsupported('EventGetList');
+  }
+  async getDevices(): Promise<unknown[]> {
+    this.unsupported('device enumeration');
+  }
+  async getDoors(): Promise<unknown[]> {
+    this.unsupported('door enumeration');
+  }
+  async accessIn(_t: string): Promise<void> {
+    this.unsupported('DoorAccessIn');
+  }
+  async accessOut(_t: string): Promise<void> {
+    this.unsupported('DoorAccessOut');
+  }
+  async activateOutput(_t: string): Promise<void> {
+    this.unsupported('output activation');
+  }
+  async deactivateOutput(_t: string): Promise<void> {
+    this.unsupported('output deactivation');
+  }
+  async healthCheck(): Promise<boolean> {
+    return false;
+  }
+}
