@@ -1,13 +1,17 @@
 import Fastify from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import { createHash } from 'node:crypto';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
-dotenv.config({ path: resolve(process.cwd(), '../../.env') });
-const env=z.object({PORT:z.coerce.number().default(3001),MOCK_UPROX:z.enum(['true','false']).default('true'),UPROX_BASE_URL:z.string().url().optional(),UPROX_USERNAME:z.string().optional(),UPROX_PASSWORD:z.string().optional(),CONTROL_RATE_LIMIT_PER_MINUTE:z.coerce.number().default(12)}).parse(process.env);
+const moduleDirectory = dirname(fileURLToPath(import.meta.url));
+const envFile = resolve(moduleDirectory, '../../../.env');
+dotenv.config({ path: envFile });
+const env=z.object({PORT:z.coerce.number().default(3001),MOCK_UPROX:z.enum(['true','false']).default('false'),UPROX_BASE_URL:z.string().url().optional(),UPROX_USERNAME:z.string().optional(),UPROX_PASSWORD:z.string().optional(),CONTROL_RATE_LIMIT_PER_MINUTE:z.coerce.number().default(12)}).superRefine((value,context)=>{if(value.MOCK_UPROX==='false'&&(!value.UPROX_BASE_URL||!value.UPROX_USERNAME||!value.UPROX_PASSWORD))context.addIssue({code:z.ZodIssueCode.custom,message:`U-PROX settings are required in ${envFile} when MOCK_UPROX=false`});}).parse(process.env);
 const app=Fastify({logger:{level:process.env.LOG_LEVEL||'info'}});
+app.log.info({mode:env.MOCK_UPROX,envFile},'U-PROX integration configuration loaded');
 await app.register(rateLimit,{global:false});
 type Session={sid:string;expiresAt:number};let session:Session|undefined;
 const md5=(s:string)=>createHash('md5').update(s).digest('hex');
