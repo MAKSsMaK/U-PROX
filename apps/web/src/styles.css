@@ -303,6 +303,19 @@ select {
   box-shadow: 0 0 10px #4fa7ff;
   transform: translate(-50%, -50%);
 }
+.map-plan-label {
+  position: absolute;
+  z-index: 3;
+  border: 1px solid #80caff;
+  border-radius: 3px;
+  padding: 3px 6px;
+  background: #061726e6;
+  color: #d8f1ff;
+  font-size: clamp(8px, 1vw, 12px);
+  font-weight: 700;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+}
 .plan-watermark {
   position: absolute;
   bottom: 14px;
@@ -906,6 +919,169 @@ pre {
   padding: 34px;
   background: #09111f;
 }
+.plan-editor-workspace {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.72fr) minmax(480px, 1.8fr) minmax(210px, 0.72fr);
+  gap: 16px;
+  align-items: start;
+}
+.editor-palette,
+.editor-map-panel,
+.editor-bindings {
+  overflow: hidden;
+  border: 1px solid #263f5b;
+  border-radius: 9px;
+  background: #0c1727;
+}
+.editor-palette {
+  max-height: calc(100dvh - 245px);
+  overflow: auto;
+  scrollbar-color: #426f99 #0c1929;
+  scrollbar-width: thin;
+}
+.editor-palette-intro,
+.editor-bindings-heading {
+  display: grid;
+  gap: 4px;
+  padding: 15px;
+  border-bottom: 1px solid #22324a;
+}
+.editor-palette-intro b,
+.editor-bindings-heading b {
+  color: #e5f4ff;
+  font-size: 13px;
+}
+.editor-palette-intro span,
+.editor-bindings-heading span {
+  color: #8299b3;
+  font-size: 11px;
+}
+.label-composer {
+  padding: 13px 15px;
+  border-bottom: 1px solid #22324a;
+}
+.label-composer label {
+  display: block;
+  margin-bottom: 7px;
+  color: #94abc2;
+  font-size: 11px;
+  font-weight: 800;
+}
+.label-composer div { display: flex; gap: 6px; }
+.label-composer input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #29445f;
+  border-radius: 5px;
+  padding: 8px;
+  background: #091523;
+  color: #e6f2ff;
+  font: 11px Manrope;
+}
+.label-composer button {
+  border: 1px solid #34749b;
+  border-radius: 5px;
+  padding: 0 9px;
+  background: #113650;
+  color: #dff5ff;
+  font: 800 10px Manrope;
+  cursor: pointer;
+}
+.editor-catalog-section { border-bottom: 1px solid #22324a; }
+.editor-catalog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 15px 8px;
+}
+.editor-catalog-heading h2 { margin: 0; color: #a7bed5; font-size: 11px; }
+.editor-catalog-heading strong { color: #58bce9; font-size: 10px; }
+.editor-catalog-items { max-height: 245px; overflow: auto; }
+.editor-catalog-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  width: 100%;
+  gap: 9px;
+  border: 0;
+  border-top: 1px solid #1b2d43;
+  padding: 10px 15px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.editor-catalog-item:hover { background: #102137; }
+.editor-catalog-item.selected { background: #16344e; box-shadow: inset 3px 0 #36c4ff; }
+.editor-catalog-item span, .editor-catalog-item b, .editor-catalog-item small { display: block; }
+.editor-catalog-item b { overflow: hidden; color: #e3eef9; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.editor-catalog-item small { margin-top: 2px; color: #7793ae; font-size: 9px; }
+.editor-map-panel { min-width: 0; }
+.editor-placement-hint { display: grid; gap: 4px; padding: 15px 17px; border-bottom: 1px solid #22324a; }
+.editor-placement-hint b { color: #d9e8f7; font-size: 13px; }
+.editor-placement-hint span { color: #8299b3; font-size: 11px; }
+.editor-placement-hint.is-ready { background: #0e2e2d; }
+.editor-placement-hint.is-ready b { color: #63dec1; }
+.editor-placement-hint.is-ready span { color: #a8dcd2; }
+.editor-map-viewport { padding: 18px; background: #06121e; }
+.editor-map-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1774 / 887;
+  overflow: hidden;
+  border: 1px solid #1d5878;
+  border-radius: 6px;
+  background: #071827;
+}
+.editor-map-frame.is-placing { cursor: crosshair; box-shadow: 0 0 0 2px #2ed5a566, 0 0 24px #1da07c33; }
+.editor-map-frame img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.editor-map-element {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  width: clamp(18px, 2.8vw, 30px);
+  aspect-ratio: 1;
+  place-items: center;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  background: #071827;
+  color: #52da98;
+  font: 800 14px/1 Manrope;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 3px #061523, 0 0 14px currentColor;
+  cursor: pointer;
+}
+.editor-map-element.device { color: #4da9ff; }
+.editor-map-element.input { color: #f7c354; }
+.editor-map-element.label {
+  width: auto;
+  min-height: 24px;
+  border-radius: 4px;
+  padding: 4px 7px;
+  color: #d9f1ff;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.editor-map-help { margin: 0; padding: 0 17px 15px; color: #7793ad; font-size: 10px; line-height: 1.45; }
+.editor-bindings { max-height: calc(100dvh - 245px); overflow: auto; }
+.editor-bindings > p { margin: 0; padding: 16px; color: #8299b3; font-size: 11px; line-height: 1.5; }
+.editor-bindings ol { margin: 0; padding: 0; list-style: none; }
+.editor-bindings li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 22px;
+  gap: 8px;
+  align-items: center;
+  border-top: 1px solid #1d3048;
+  padding: 11px 13px;
+}
+.editor-bindings li i { display: grid; width: 21px; height: 21px; place-items: center; border: 1px solid currentColor; border-radius: 50%; color: #50d993; font-size: 11px; font-style: normal; }
+.editor-bindings li i.device { color: #4da9ff; }
+.editor-bindings li i.input { color: #f7c354; }
+.editor-bindings li i.label { color: #d9f1ff; border-radius: 3px; }
+.editor-bindings li b, .editor-bindings li small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-bindings li b { color: #dceafa; font-size: 11px; }
+.editor-bindings li small { margin-top: 3px; color: #7895b0; font-size: 9px; }
+.editor-bindings li button { border: 0; background: transparent; color: #a1b4c8; font-size: 20px; cursor: pointer; }
+.editor-bindings li button:hover { color: #ff8a92; }
 .catalog-refresh {
   border: 1px solid #365a83;
   border-radius: 6px;
@@ -1081,4 +1257,17 @@ pre {
   .catalog-items {
     max-height: 260px;
   }
+  .plan-editor-workspace {
+    grid-template-columns: minmax(220px, 0.85fr) minmax(450px, 1.7fr);
+  }
+  .editor-bindings {
+    grid-column: 1 / -1;
+    max-height: 260px;
+  }
+}
+@media (max-width: 780px) {
+  .plan-editor-page { padding: 18px; }
+  .plan-editor-workspace { grid-template-columns: 1fr; }
+  .editor-palette, .editor-bindings { max-height: none; }
+  .editor-map-viewport { padding: 10px; }
 }

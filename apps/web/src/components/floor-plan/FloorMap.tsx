@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { doors, useStore } from '../../store';
+import { planElementIcon, readPlanElements } from '../../features/plans/planElements';
 
 const planFloors = ['2 поверх', '3 поверх', '4 поверх'] as const;
 
@@ -11,6 +12,7 @@ export function FloorMap() {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [imageUnavailable, setImageUnavailable] = useState(false);
+  const [savedElements] = useState(readPlanElements);
   const dragStart = useRef<{ x: number; y: number; panX: number; panY: number }>();
   const hasThirdFloorPlan = floor === '3 поверх';
   const changeZoom = (change: number) =>
@@ -90,29 +92,29 @@ export function FloorMap() {
               onError={() => setImageUnavailable(true)}
               src="/floor-plans/court-floor-3-blueprint.png"
             />
-            {doors.map((door) => (
-              <button
-                aria-label={door[0]}
-                className={`marker ${door[1]} ${selected[0] === door[0] ? 'selected' : ''}`}
-                key={door[0]}
-                onClick={() => select(door)}
-                style={{ left: `${door[2]}%`, top: `${door[3]}%` }}
-                title={`${door[0]} · тестова позиція`}
-                type="button"
-              >
-                {door[1] === 'blue' ? '▣' : '▯'}
-              </button>
-            ))}
-            <span
-              className="sensor-marker"
-              style={{ left: '40%', top: '27%' }}
-              title="Датчик · ще не прив’язано"
-            />
-            <span
-              className="sensor-marker"
-              style={{ left: '62%', top: '58%' }}
-              title="Датчик · ще не прив’язано"
-            />
+            {(savedElements.length ? savedElements : doors.map(([name, color, x, y]) => ({ id: name, name, type: color === 'blue' ? 'device' as const : 'door' as const, x, y }))).map((element) =>
+              element.type === 'label' ? (
+                <span className="map-plan-label" key={element.id} style={{ left: `${element.x}%`, top: `${element.y}%` }}>
+                  {element.name}
+                </span>
+              ) : (
+                <button
+                  aria-label={element.name}
+                  className={`marker ${element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${selected[0] === element.name ? 'selected' : ''}`}
+                  key={element.id}
+                  onClick={() => select([element.name, element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green', element.x, element.y])}
+                  style={{ left: `${element.x}%`, top: `${element.y}%` }}
+                  title={savedElements.length ? `${element.name}${'token' in element && element.token ? ` · токен ${element.token}` : ''}` : `${element.name} · тестова позиція`}
+                  type="button"
+                >
+                  {planElementIcon(element.type)}
+                </button>
+              ),
+            )}
+            {!savedElements.length && <>
+              <span className="sensor-marker" style={{ left: '40%', top: '27%' }} title="Датчик · ще не прив’язано" />
+              <span className="sensor-marker" style={{ left: '62%', top: '58%' }} title="Датчик · ще не прив’язано" />
+            </>}
           </div>
         ) : (
           <div className="plan-empty-state">
@@ -124,7 +126,7 @@ export function FloorMap() {
             </span>
           </div>
         )}
-        <div className="plan-watermark">Електронний шар · тестові маркери не прив’язані</div>
+        <div className="plan-watermark">{savedElements.length ? `Електронний шар · ${savedElements.length} прив’язок` : 'Електронний шар · тестові маркери не прив’язані'}</div>
         <div className="plan-zoom" aria-label="Масштаб карти">
           <button
             aria-label="Зменшити масштаб"
