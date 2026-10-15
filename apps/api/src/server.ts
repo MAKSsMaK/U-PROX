@@ -37,6 +37,8 @@ type Session = { sid: string; expiresAt: number };
 let session: Session | undefined;
 type EmployeeDirectory = { employees: unknown[]; expiresAt: number };
 let employeeDirectory: EmployeeDirectory | undefined;
+type CachedImage = { content: Buffer; contentType: string; expiresAt: number };
+const images = new Map<string, CachedImage>();
 type UproxxEmployee = {
   Token?: string | number;
   Name?: string;
@@ -127,6 +129,42 @@ async function getEmployeeDirectory() {
   }
 }
 
+function imageContentType(content: Buffer) {
+  if (content.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))) return 'image/jpeg';
+  if (content.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])))
+    return 'image/png';
+  if (content.subarray(0, 4).toString('ascii') === 'GIF8') return 'image/gif';
+  return 'application/octet-stream';
+}
+
+async function getImage(imageToken: string) {
+  const cached = images.get(imageToken);
+  if (cached && cached.expiresAt > Date.now()) return cached;
+
+  if (images.size >= 2_000) {
+    for (const [token, image] of images) {
+      if (image.expiresAt <= Date.now()) images.delete(token);
+    }
+  }
+
+  const response = (await uproxx('ImageGet', {
+    Language: 'uk',
+    ImageToken: Number(imageToken),
+  })) as { ImageBase64?: string };
+  const encodedImage = response.ImageBase64?.replace(/^data:[^;]+;base64,/, '');
+  if (!encodedImage) return undefined;
+
+  const content = Buffer.from(encodedImage, 'base64');
+  if (content.length === 0) return undefined;
+  const image = {
+    content,
+    contentType: imageContentType(content),
+    expiresAt: Date.now() + 60 * 60_000,
+  };
+  if (images.size < 2_000) images.set(imageToken, image);
+  return image;
+}
+
 app.get('/api/events', async (request) => {
   const { limit, hours } = eventsQuery.parse(request.query);
   // The installed U-PROX accepts this minimal documented EventGetList request.
@@ -152,6 +190,21 @@ app.get('/api/events', async (request) => {
     return employee ? { ...event, Employee: employee } : event;
   });
   return { ...response, Event: enrichedEvents };
+});
+
+app.get('/api/images/:token', async (request, reply) => {
+  const parsed = z
+    .string()
+    .regex(/^\d+$/)
+    .safeParse((request.params as { token?: string }).token);
+  if (!parsed.success) return reply.code(400).send({ error: 'Invalid image token' });
+
+  const image = await getImage(parsed.data);
+  if (!image) return reply.code(404).send({ error: 'Image was not found' });
+  return reply
+    .header('Cache-Control', 'private, max-age=3600')
+    .type(image.contentType)
+    .send(image.content);
 });
 const probes = {
   version: { path: 'VersionGet', body: {} },
