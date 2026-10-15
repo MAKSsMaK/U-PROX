@@ -12,8 +12,30 @@ export async function getEvents({ hours = 24, limit = 50 } = {}) {
 
 export type HealthResponse = { ok: boolean; mode: 'mock' | 'uproxx' };
 
+export type PlanCatalogItem = {
+  token: string;
+  name: string;
+  model: string | null;
+  online: boolean | null;
+  deviceToken: string | null;
+  inputNumber: string | null;
+};
+
+export type PlanCatalog = {
+  doors: PlanCatalogItem[];
+  devices: PlanCatalogItem[];
+  inputs: PlanCatalogItem[];
+  warnings: string[];
+};
+
 export async function getHealth(): Promise<HealthResponse> {
   const response = await fetch('/api/health');
+  if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
+  return response.json();
+}
+
+export async function getPlanCatalog(): Promise<PlanCatalog> {
+  const response = await fetch('/api/plan/catalog');
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
   return response.json();
 }

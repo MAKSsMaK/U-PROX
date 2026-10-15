@@ -1,16 +1,42 @@
-import { useState } from 'react';
 import { liveEvents } from '../../data/dashboard';
 import { useStore } from '../../store';
-import { ManualActionDialog } from '../integration/ManualActionDialog';
 
 export function LiveEventFeed() {
   const selected = useStore((state) => state.selected);
-  const [action, setAction] = useState<string>();
   return (
     <section className="feed">
       <div className="feed-title">
-        <b>Живі події</b>
-        <em>● LIVE</em>
+        <b>Об’єкт на плані</b>
+        <em>ЕТАП 1</em>
+      </div>
+      <div className="plan-details">
+        <button className="plan-details-close" type="button" aria-label="Закрити панель">
+          ×
+        </button>
+        <div className={`object-icon ${selected[1]}`}>{selected[1] === 'blue' ? '▣' : '▯'}</div>
+        <h2>{selected[0]}</h2>
+        <p>Третій поверх · мітка ще не прив’язана до об’єкта U‑PROX</p>
+        <dl>
+          <div>
+            <dt>Тип</dt>
+            <dd>{selected[1] === 'blue' ? 'Контролер' : 'Точка доступу'}</dd>
+          </div>
+          <div>
+            <dt>U‑PROX токен</dt>
+            <dd>Не налаштовано</dd>
+          </div>
+          <div>
+            <dt>Live-стан</dt>
+            <dd>Очікує прив’язку</dd>
+          </div>
+        </dl>
+        <button className="plan-details-action" disabled type="button">
+          Налаштувати в редакторі
+        </button>
+      </div>
+      <div className="feed-title feed-title-events">
+        <b>Приклад стрічки подій</b>
+        <em>LIVE</em>
       </div>
       {liveEvents.map((event) => (
         <article className={event.severity} key={event.time}>
@@ -22,25 +48,6 @@ export function LiveEventFeed() {
           </div>
         </article>
       ))}
-      <div className="details">
-        <b>{selected[0]}</b>
-        <small>Контролер U-PROX IC A · Reader 02</small>
-        <strong>● НОРМА</strong>
-        <div className="actions">
-          {['Відкрити', 'Доступ: вхід', 'Доступ: вихід', 'Заблокувати'].map((label) => (
-            <button onClick={() => setAction(label)} key={label}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-      {action && (
-        <ManualActionDialog
-          action={action}
-          doorName={selected[0]}
-          onClose={() => setAction(undefined)}
-        />
-      )}
     </section>
   );
 }

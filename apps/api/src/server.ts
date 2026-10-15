@@ -81,7 +81,16 @@ function mockResponse(path: string) {
   const samples: Record<string, unknown> = {
     VersionGet: { Version: 'MOCK U-PROX 3.057.7988' },
     DoorGetList: { Door: [{ Token: 23902, Name: 'Двері 3-01' }] },
-    DeviceGetList: { Device: [{ Token: 23880, Name: 'Контролер 3 поверх', Online: true }] },
+    DeviceGetList: {
+      Device: [
+        { Token: 23880, Name: 'Контролер 3 поверх', DeviceType: 'U‑PROX IP400', Online: true },
+      ],
+    },
+    DeviceInputGetList: {
+      DeviceInput: [
+        { Token: 41001, Name: 'Геркон службового входу', DeviceToken: 23880, Number: 1 },
+      ],
+    },
     EventGetListV2: { Event: [] },
     EmployeeGetList: { Employee: [] },
     DesktopLayoutGet: { Language: 'uk', UserToken: 0, EventColumns: [] },
@@ -93,6 +102,70 @@ app.get('/api/health', async () => ({
   mode: env.MOCK_UPROX === 'true' ? 'mock' : 'uproxx',
   uproxxBase: env.MOCK_UPROX === 'true' ? null : env.UPROX_BASE_URL,
 }));
+
+type UproxxCatalogRecord = Record<string, unknown>;
+type PlanCatalogItem = {
+  token: string;
+  name: string;
+  model: string | null;
+  online: boolean | null;
+  deviceToken: string | null;
+  inputNumber: string | null;
+};
+
+function records(value: unknown, property: string) {
+  const response = value as Record<string, unknown>;
+  const list = response[property];
+  return Array.isArray(list) ? (list as UproxxCatalogRecord[]) : [];
+}
+
+function catalogItem(record: UproxxCatalogRecord): PlanCatalogItem {
+  const token = record.Token ?? record.DeviceToken ?? record.ID ?? record.Id;
+  const name =
+    record.Name ?? record.Description ?? record.Caption ?? `Об’єкт ${token ?? 'без токена'}`;
+  const model = record.Model ?? record.DeviceModel ?? record.DeviceType ?? record.Type;
+  const deviceToken = record.DeviceToken ?? record.ParentToken;
+  const inputNumber = record.Number ?? record.InputNumber ?? record.Index;
+  return {
+    token: String(token ?? ''),
+    name: String(name),
+    model: model === undefined || model === null ? null : String(model),
+    online: typeof record.Online === 'boolean' ? record.Online : null,
+    deviceToken: deviceToken === undefined || deviceToken === null ? null : String(deviceToken),
+    inputNumber: inputNumber === undefined || inputNumber === null ? null : String(inputNumber),
+  };
+}
+
+app.get('/api/plan/catalog', async () => {
+  const listBody = { Language: 'uk', Limit: 2_000, StartToken: 0 };
+  const [doorResult, deviceResult, inputResult] = await Promise.allSettled([
+    uproxx('DoorGetList', listBody),
+    uproxx('DeviceGetList', listBody),
+    uproxx('DeviceInputGetList', listBody),
+  ]);
+  const unavailable = (result: PromiseSettledResult<unknown>, label: string) =>
+    result.status === 'rejected'
+      ? `${label}: ${result.reason instanceof Error ? result.reason.message : 'недоступно'}`
+      : null;
+
+  return {
+    doors:
+      doorResult.status === 'fulfilled' ? records(doorResult.value, 'Door').map(catalogItem) : [],
+    devices:
+      deviceResult.status === 'fulfilled'
+        ? records(deviceResult.value, 'Device').map(catalogItem)
+        : [],
+    inputs:
+      inputResult.status === 'fulfilled'
+        ? records(inputResult.value, 'DeviceInput').map(catalogItem)
+        : [],
+    warnings: [
+      unavailable(doorResult, 'DoorGetList'),
+      unavailable(deviceResult, 'DeviceGetList'),
+      unavailable(inputResult, 'DeviceInputGetList'),
+    ].filter((warning): warning is string => Boolean(warning)),
+  };
+});
 const eventsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   hours: z.coerce.number().int().min(1).max(168).default(24),

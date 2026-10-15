@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { FloorMap } from '../components/floor-plan/FloorMap';
+import { PlanStatusBar } from '../components/floor-plan/PlanStatusBar';
 import { LiveEventFeed } from '../components/events/LiveEventFeed';
 import { IntegrationTestDialog } from '../components/integration/IntegrationTestDialog';
 import { DashboardLayout } from '../layouts/DashboardLayout';
@@ -34,6 +35,7 @@ export function LivePlanPage() {
           </div>
         </header>
         <FloorMap />
+        <PlanStatusBar />
       </main>
       <LiveEventFeed />
       <button className="api-test" onClick={() => setTesting(true)}>
