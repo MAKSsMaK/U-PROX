@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FloorMap } from '../components/floor-plan/FloorMap';
 import { PlanStatusBar } from '../components/floor-plan/PlanStatusBar';
 import { LiveEventFeed } from '../components/events/LiveEventFeed';
@@ -32,6 +33,9 @@ export function LivePlanPage() {
               <option>2 поверх</option>
               <option>3 поверх</option>
             </select>
+            <Link className="plan-editor-link" to="/plan-editor">
+              Редагувати план
+            </Link>
           </div>
         </header>
         <FloorMap />
