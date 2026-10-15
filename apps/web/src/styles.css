@@ -11,7 +11,9 @@ body {
   margin: 0;
 }
 .app {
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 246px minmax(0, 1fr);
   background: #09111f;
@@ -30,7 +32,7 @@ body {
   border-width: 0 1px 0 0;
   padding: 25px 14px;
   position: relative;
-  min-height: 100vh;
+  min-height: 0;
 }
 .brand {
   display: flex;
@@ -370,9 +372,12 @@ pre {
 }
 
 .events-page {
-  min-height: 100vh;
+  min-height: 0;
   padding: 34px;
   background: #09111f;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
 }
 .page-header {
   height: auto;
@@ -418,10 +423,13 @@ pre {
   color: #ff7a82;
 }
 .events-panel {
+  min-height: 0;
   overflow: hidden;
   border: 1px solid #263c58;
   border-radius: 10px;
   background: #0c1727;
+  display: flex;
+  flex-direction: column;
 }
 .events-panel-title {
   display: flex;
@@ -451,7 +459,9 @@ pre {
   cursor: pointer;
 }
 .data-table-scroll {
-  overflow-x: auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 .data-table {
   width: 100%;

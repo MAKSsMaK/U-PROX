@@ -16,6 +16,7 @@ const env = z
     UPROX_BASE_URL: z.string().url().optional(),
     UPROX_USERNAME: z.string().optional(),
     UPROX_PASSWORD: z.string().optional(),
+    UPROX_EMPLOYEE_DIRECTORY_LIMIT: z.coerce.number().int().min(1).max(10_000).default(2_000),
     CONTROL_RATE_LIMIT_PER_MINUTE: z.coerce.number().default(12),
   })
   .superRefine((value, context) => {
@@ -36,6 +37,13 @@ type Session = { sid: string; expiresAt: number };
 let session: Session | undefined;
 type EmployeeDirectory = { employees: unknown[]; expiresAt: number };
 let employeeDirectory: EmployeeDirectory | undefined;
+type UproxxEmployee = {
+  Token?: string | number;
+  Name?: string;
+  Post?: string;
+  Department?: { Name?: string };
+  DepartmentName?: string;
+};
 // U-PROX requires uppercase hexadecimal MD5 values (0-9 and A-F).
 const md5 = (s: string) => createHash('md5').update(s).digest('hex').toUpperCase();
 function passwordHash(password: string) {
@@ -84,7 +92,7 @@ app.get('/api/health', async () => ({
   uproxxBase: env.MOCK_UPROX === 'true' ? null : env.UPROX_BASE_URL,
 }));
 const eventsQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(500).default(100),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
   hours: z.coerce.number().int().min(1).max(168).default(24),
 });
 
@@ -101,7 +109,7 @@ async function getEmployeeDirectory() {
     const response = (await uproxx('EmployeeGetList', {
       Language: 'uk',
       SubscriptionEnabled: false,
-      Limit: 0,
+      Limit: env.UPROX_EMPLOYEE_DIRECTORY_LIMIT,
       StartToken: 0,
       AdditionalFieldsRequired: false,
       DepartmentUsed: false,
@@ -122,18 +130,28 @@ async function getEmployeeDirectory() {
 app.get('/api/events', async (request) => {
   const { limit, hours } = eventsQuery.parse(request.query);
   // The installed U-PROX accepts this minimal documented EventGetList request.
-  // Negative Limit returns newest events first.
+  // Negative Limit returns newest events first; keep the poll bounded.
   const response = (await uproxx('EventGetList', {
     // A negative limit asks U-PROX for the newest events first.
-    Limit: -Math.max(limit, 500),
+    Limit: -limit,
     StartToken: 0,
   })) as Record<string, unknown> & { Event?: Array<Record<string, unknown>> };
   const fromMilliseconds = Date.now() - hours * 60 * 60_000;
   const events = (response.Event ?? [])
     .filter((event) => issuedMilliseconds(event.Issued) >= fromMilliseconds)
     .slice(0, limit);
-  const employees = await getEmployeeDirectory();
-  return { ...response, Event: events, Employee: employees };
+  const employeesByToken = new Map(
+    ((await getEmployeeDirectory()) as UproxxEmployee[]).flatMap((employee) =>
+      employee.Token === undefined ? [] : [[String(employee.Token), employee] as const],
+    ),
+  );
+  const enrichedEvents = events.map((event) => {
+    const user = event.User as { Token?: string | number } | undefined;
+    const employee =
+      user?.Token === undefined ? undefined : employeesByToken.get(String(user.Token));
+    return employee ? { ...event, Employee: employee } : event;
+  });
+  return { ...response, Event: enrichedEvents };
 });
 const probes = {
   version: { path: 'VersionGet', body: {} },

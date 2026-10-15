@@ -4,7 +4,7 @@ export async function runIntegrationTest() {
   return r.json();
 }
 
-export async function getEvents({ hours = 24, limit = 100 } = {}) {
+export async function getEvents({ hours = 24, limit = 50 } = {}) {
   const response = await fetch(`/api/events?hours=${hours}&limit=${limit}`);
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
   return response.json();

@@ -17,6 +17,7 @@ export type UproxxEvent = {
   Sender?: UproxxNamed;
   Message?: { Name?: string; Code?: string | number };
   CardCode?: string;
+  Employee?: UproxxEmployee;
 };
 
 export type EventTableRow = {
@@ -44,13 +45,8 @@ function issuedMilliseconds(value?: string) {
 }
 
 export function toEventTableRows(payload: unknown): EventTableRow[] {
-  const response = payload as { Event?: UproxxEvent[]; Employee?: UproxxEmployee[] } | undefined;
+  const response = payload as { Event?: UproxxEvent[] } | undefined;
   const events = response?.Event ?? [];
-  const employees = new Map(
-    (response?.Employee ?? []).flatMap((employee) =>
-      employee.Token === undefined ? [] : [[String(employee.Token), employee] as const],
-    ),
-  );
   return [...events]
     .sort((left, right) => issuedMilliseconds(right.Issued) - issuedMilliseconds(left.Issued))
     .map((event, index) => ({
@@ -59,13 +55,13 @@ export function toEventTableRows(payload: unknown): EventTableRow[] {
       employee: event.User?.Name || (event.CardCode ? 'Невідома картка' : 'Системна подія'),
       department:
         event.Department?.Name ||
-        employees.get(String(event.User?.Token))?.Department?.Name ||
-        employees.get(String(event.User?.Token))?.DepartmentName ||
+        event.Employee?.Department?.Name ||
+        event.Employee?.DepartmentName ||
         '—',
       accessPoint: event.Sender?.Name || '—',
       eventName: event.Message?.Name || 'Подія без назви',
       cardCode: event.CardCode || '—',
-      position: event.User?.Post || employees.get(String(event.User?.Token))?.Post || '—',
+      position: event.User?.Post || event.Employee?.Post || '—',
     }));
 }
 

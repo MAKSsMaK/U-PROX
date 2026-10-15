@@ -7,8 +7,8 @@ import { DashboardLayout } from '../layouts/DashboardLayout';
 export function EventsPage() {
   const eventsQuery = useQuery({
     queryKey: ['events'],
-    queryFn: () => getEvents({ hours: 24, limit: 100 }),
-    refetchInterval: 5_000,
+    queryFn: () => getEvents({ hours: 24, limit: 50 }),
+    refetchInterval: 10_000,
   });
   const rows = toEventTableRows(eventsQuery.data);
 
@@ -19,7 +19,7 @@ export function EventsPage() {
           <div>
             <p className="eyebrow">U‑PROX · ЖИВІ ДАНІ</p>
             <h1>Події</h1>
-            <span>Останні 24 години · оновлюється кожні 5 секунд</span>
+            <span>До 50 подій за останні 24 години · оновлюється кожні 10 секунд</span>
           </div>
           <div className="events-status">
             <i className={eventsQuery.isError ? 'is-error' : ''} />
