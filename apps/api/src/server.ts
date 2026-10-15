@@ -1,8 +1,11 @@
 import Fastify from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import { createHash } from 'node:crypto';
+import { resolve } from 'node:path';
+import dotenv from 'dotenv';
 import { z } from 'zod';
 
+dotenv.config({ path: resolve(process.cwd(), '../../.env') });
 const env=z.object({PORT:z.coerce.number().default(3001),MOCK_UPROX:z.enum(['true','false']).default('true'),UPROX_BASE_URL:z.string().url().optional(),UPROX_USERNAME:z.string().optional(),UPROX_PASSWORD:z.string().optional(),CONTROL_RATE_LIMIT_PER_MINUTE:z.coerce.number().default(12)}).parse(process.env);
 const app=Fastify({logger:{level:process.env.LOG_LEVEL||'info'}});
 await app.register(rateLimit,{global:false});
