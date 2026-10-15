@@ -80,17 +80,18 @@ app.get('/api/health', async () => ({
   mode: env.MOCK_UPROX === 'true' ? 'mock' : 'uproxx',
   uproxxBase: env.MOCK_UPROX === 'true' ? null : env.UPROX_BASE_URL,
 }));
-app.get('/api/events', async () =>
-  uproxx('EventGetList', {
-    Language: 'ru',
+const eventsQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+});
+app.get('/api/events', async (request) => {
+  const { limit } = eventsQuery.parse(request.query);
+  return uproxx('EventGetListV2', {
+    Language: 'uk',
     SubscriptionEnabled: false,
-    Limit: 100,
+    Limit: limit,
     StartToken: 0,
-    Employees: [],
-    IssuedFrom: `\\/Date(${Date.now() - 3600_000})\\/`,
-    IssuedTo: `\\/Date(${Date.now()})\\/`,
-  }),
-);
+  });
+});
 const probes = {
   version: { path: 'VersionGet', body: {} },
   doors: { path: 'DoorGetList', body: { Language: 'uk', Limit: 100, StartToken: 0 } },

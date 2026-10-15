@@ -1,9 +1,14 @@
 import type { ReactNode } from 'react';
 import { Sidebar } from '../components/navigation/Sidebar';
 
-export function DashboardLayout({ children }: { children: ReactNode }) {
+type DashboardLayoutProps = {
+  children: ReactNode;
+  variant?: 'single' | 'plan';
+};
+
+export function DashboardLayout({ children, variant = 'single' }: DashboardLayoutProps) {
   return (
-    <div className="app">
+    <div className={`app app--${variant}`}>
       <Sidebar />
       {children}
     </div>

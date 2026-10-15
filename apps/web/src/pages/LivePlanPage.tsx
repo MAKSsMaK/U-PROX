@@ -12,7 +12,7 @@ export function LivePlanPage() {
   const setFloor = useStore((state) => state.setFloor);
   const [testing, setTesting] = useState(false);
   return (
-    <DashboardLayout>
+    <DashboardLayout variant="plan">
       <main>
         <header>
           <div>
