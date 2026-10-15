@@ -2,4 +2,6 @@
 node_modules/
 apps/api/node_modules/
 apps/api/dist/
+apps/web/dist/
 *.tgz
+*.tsbuildinfo

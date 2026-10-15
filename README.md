@@ -1,6 +1,6 @@
 # U-PROX Command Center
 
-Initial monorepo implementation for secure U-PROX operations. The deployed build is a visual, browser-local mock dashboard; the local VM deployment runs static UI, API, and PostgreSQL in one Compose stack.
+Initial monorepo implementation for secure U-PROX operations. `apps/web` is a React + TypeScript + Vite application using React Router, TanStack Query, and Zustand; `apps/api` is the Fastify backend. Docker builds the React application into the Nginx image.
 
 ## Local development
 
