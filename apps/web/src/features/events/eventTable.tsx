@@ -2,10 +2,17 @@ import type { DataTableColumn } from '../../components/tables/DataTable';
 
 type UproxxPerson = { Name?: string; Post?: string };
 type UproxxNamed = { Name?: string };
+type UproxxEmployee = {
+  Token?: string | number;
+  Name?: string;
+  Post?: string;
+  Department?: UproxxNamed;
+  DepartmentName?: string;
+};
 export type UproxxEvent = {
   Token?: string | number;
   Issued?: string;
-  User?: UproxxPerson;
+  User?: UproxxPerson & { Token?: string | number };
   Department?: UproxxNamed;
   Sender?: UproxxNamed;
   Message?: { Name?: string; Code?: string | number };
@@ -32,18 +39,34 @@ function formatUproxxDate(value?: string) {
   }).format(new Date(Number(milliseconds)));
 }
 
+function issuedMilliseconds(value?: string) {
+  return Number(value?.match(/\d+/)?.[0] ?? 0);
+}
+
 export function toEventTableRows(payload: unknown): EventTableRow[] {
-  const events = (payload as { Event?: UproxxEvent[] } | undefined)?.Event ?? [];
-  return events.map((event, index) => ({
-    id: String(event.Token ?? `${event.Issued}-${index}`),
-    occurredAt: formatUproxxDate(event.Issued),
-    employee: event.User?.Name || 'Невідома особа',
-    department: event.Department?.Name || '—',
-    accessPoint: event.Sender?.Name || '—',
-    eventName: event.Message?.Name || 'Подія без назви',
-    cardCode: event.CardCode || '—',
-    position: event.User?.Post || '—',
-  }));
+  const response = payload as { Event?: UproxxEvent[]; Employee?: UproxxEmployee[] } | undefined;
+  const events = response?.Event ?? [];
+  const employees = new Map(
+    (response?.Employee ?? []).flatMap((employee) =>
+      employee.Token === undefined ? [] : [[String(employee.Token), employee] as const],
+    ),
+  );
+  return [...events]
+    .sort((left, right) => issuedMilliseconds(right.Issued) - issuedMilliseconds(left.Issued))
+    .map((event, index) => ({
+      id: String(event.Token ?? `${event.Issued}-${index}`),
+      occurredAt: formatUproxxDate(event.Issued),
+      employee: event.User?.Name || (event.CardCode ? 'Невідома картка' : 'Системна подія'),
+      department:
+        event.Department?.Name ||
+        employees.get(String(event.User?.Token))?.Department?.Name ||
+        employees.get(String(event.User?.Token))?.DepartmentName ||
+        '—',
+      accessPoint: event.Sender?.Name || '—',
+      eventName: event.Message?.Name || 'Подія без назви',
+      cardCode: event.CardCode || '—',
+      position: event.User?.Post || employees.get(String(event.User?.Token))?.Post || '—',
+    }));
 }
 
 export const eventTableColumns: DataTableColumn<EventTableRow>[] = [

@@ -34,6 +34,8 @@ app.log.info({ mode: env.MOCK_UPROX, envFile }, 'U-PROX integration configuratio
 await app.register(rateLimit, { global: false });
 type Session = { sid: string; expiresAt: number };
 let session: Session | undefined;
+type EmployeeDirectory = { employees: unknown[]; expiresAt: number };
+let employeeDirectory: EmployeeDirectory | undefined;
 // U-PROX requires uppercase hexadecimal MD5 values (0-9 and A-F).
 const md5 = (s: string) => createHash('md5').update(s).digest('hex').toUpperCase();
 function passwordHash(password: string) {
@@ -71,6 +73,7 @@ function mockResponse(path: string) {
     DoorGetList: { Door: [{ Token: 23902, Name: 'Двері 3-01' }] },
     DeviceGetList: { Device: [{ Token: 23880, Name: 'Контролер 3 поверх', Online: true }] },
     EventGetListV2: { Event: [] },
+    EmployeeGetList: { Employee: [] },
     DesktopLayoutGet: { Language: 'uk', UserToken: 0, EventColumns: [] },
   };
   return samples[path] ?? { Event: [] };
@@ -82,15 +85,58 @@ app.get('/api/health', async () => ({
 }));
 const eventsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(500).default(100),
+  hours: z.coerce.number().int().min(1).max(168).default(24),
 });
+
+function toUproxxDate(date: Date) {
+  const timezoneOffsetMinutes = -date.getTimezoneOffset();
+  const sign = timezoneOffsetMinutes >= 0 ? '+' : '-';
+  const absoluteOffset = Math.abs(timezoneOffsetMinutes);
+  const timezone = `${sign}${String(Math.floor(absoluteOffset / 60)).padStart(2, '0')}${String(
+    absoluteOffset % 60,
+  ).padStart(2, '0')}`;
+  return `\\/Date(${date.getTime()}${timezone})\\/`;
+}
+
+async function getEmployeeDirectory() {
+  if (employeeDirectory && employeeDirectory.expiresAt > Date.now()) {
+    return employeeDirectory.employees;
+  }
+
+  try {
+    const response = (await uproxx('EmployeeGetList', {
+      Language: 'uk',
+      SubscriptionEnabled: false,
+      Limit: 0,
+      StartToken: 0,
+      AdditionalFieldsRequired: false,
+      DepartmentUsed: false,
+      HideDismissed: true,
+    })) as { Employee?: unknown[] };
+
+    employeeDirectory = {
+      employees: response.Employee ?? [],
+      expiresAt: Date.now() + 10 * 60_000,
+    };
+    return employeeDirectory.employees;
+  } catch (error) {
+    app.log.warn({ error }, 'Unable to load U-PROX employee directory');
+    return employeeDirectory?.employees ?? [];
+  }
+}
+
 app.get('/api/events', async (request) => {
-  const { limit } = eventsQuery.parse(request.query);
-  return uproxx('EventGetListV2', {
+  const { limit, hours } = eventsQuery.parse(request.query);
+  const events = await uproxx('EventGetList', {
     Language: 'uk',
     SubscriptionEnabled: false,
-    Limit: limit,
+    // A negative limit asks U-PROX for the newest events first.
+    Limit: -limit,
     StartToken: 0,
+    IssuedFrom: toUproxxDate(new Date(Date.now() - hours * 60 * 60_000)),
   });
+  const employees = await getEmployeeDirectory();
+  return { ...(events as Record<string, unknown>), Employee: employees };
 });
 const probes = {
   version: { path: 'VersionGet', body: {} },
