@@ -9,3 +9,11 @@ export async function getEvents({ hours = 24, limit = 100 } = {}) {
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
   return response.json();
 }
+
+export type HealthResponse = { ok: boolean; mode: 'mock' | 'uproxx' };
+
+export async function getHealth(): Promise<HealthResponse> {
+  const response = await fetch('/api/health');
+  if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
+  return response.json();
+}

@@ -88,14 +88,8 @@ const eventsQuery = z.object({
   hours: z.coerce.number().int().min(1).max(168).default(24),
 });
 
-function toUproxxDate(date: Date) {
-  const timezoneOffsetMinutes = -date.getTimezoneOffset();
-  const sign = timezoneOffsetMinutes >= 0 ? '+' : '-';
-  const absoluteOffset = Math.abs(timezoneOffsetMinutes);
-  const timezone = `${sign}${String(Math.floor(absoluteOffset / 60)).padStart(2, '0')}${String(
-    absoluteOffset % 60,
-  ).padStart(2, '0')}`;
-  return `\\/Date(${date.getTime()}${timezone})\\/`;
+function issuedMilliseconds(value: unknown) {
+  return Number(typeof value === 'string' ? (value.match(/\d+/)?.[0] ?? 0) : 0);
 }
 
 async function getEmployeeDirectory() {
@@ -127,16 +121,19 @@ async function getEmployeeDirectory() {
 
 app.get('/api/events', async (request) => {
   const { limit, hours } = eventsQuery.parse(request.query);
-  const events = await uproxx('EventGetList', {
-    Language: 'uk',
-    SubscriptionEnabled: false,
+  // The installed U-PROX accepts this minimal documented EventGetList request.
+  // Negative Limit returns newest events first.
+  const response = (await uproxx('EventGetList', {
     // A negative limit asks U-PROX for the newest events first.
-    Limit: -limit,
+    Limit: -Math.max(limit, 500),
     StartToken: 0,
-    IssuedFrom: toUproxxDate(new Date(Date.now() - hours * 60 * 60_000)),
-  });
+  })) as Record<string, unknown> & { Event?: Array<Record<string, unknown>> };
+  const fromMilliseconds = Date.now() - hours * 60 * 60_000;
+  const events = (response.Event ?? [])
+    .filter((event) => issuedMilliseconds(event.Issued) >= fromMilliseconds)
+    .slice(0, limit);
   const employees = await getEmployeeDirectory();
-  return { ...(events as Record<string, unknown>), Employee: employees };
+  return { ...response, Event: events, Employee: employees };
 });
 const probes = {
   version: { path: 'VersionGet', body: {} },

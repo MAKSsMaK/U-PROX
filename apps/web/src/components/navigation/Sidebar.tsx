@@ -1,4 +1,6 @@
 import { NavLink } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { getHealth } from '../../api';
 import { useIntegrationStore } from '../../store';
 
 const navigation = [
@@ -13,6 +15,12 @@ const navigation = [
 
 export function Sidebar() {
   const mode = useIntegrationStore((state) => state.mode);
+  const healthQuery = useQuery({
+    queryKey: ['health'],
+    queryFn: getHealth,
+    refetchInterval: 30_000,
+  });
+  const apiMode = healthQuery.data?.mode ?? mode;
   return (
     <aside>
       <div className="brand">
@@ -30,7 +38,7 @@ export function Sidebar() {
       ))}
       <div className="connection">
         <b>● СИСТЕМА В МЕРЕЖІ</b>
-        <small>U-PROX API · {mode === 'uproxx' ? 'REAL MODE' : 'MOCK MODE'}</small>
+        <small>U-PROX API · {apiMode === 'uproxx' ? 'REAL MODE' : 'MOCK MODE'}</small>
       </div>
     </aside>
   );
