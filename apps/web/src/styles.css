@@ -1004,15 +1004,24 @@ pre {
 }
 .plan-editor-page {
   min-height: 0;
-  overflow: auto;
-  padding: 24px clamp(24px, 4vw, 72px) 32px;
+  height: 100dvh;
+  overflow: hidden;
+  padding: 14px clamp(20px, 3vw, 54px) 18px;
   background: #09111f;
+  display: flex;
+  flex-direction: column;
 }
+.plan-editor-page .page-header { height: 58px; flex: 0 0 auto; padding: 0; }
+.plan-editor-page .page-header h1 { font-size: 18px; }
+.plan-editor-page .page-header .eyebrow { margin: 0 0 3px; font-size: 9px; }
+.plan-editor-page .page-header span { font-size: 10px; }
 .plan-editor-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(235px, 310px);
   gap: 16px;
   align-items: stretch;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 .editor-palette,
 .editor-map-panel,
@@ -1111,12 +1120,15 @@ pre {
 .editor-placement-hint.is-ready { background: #0e2e2d; }
 .editor-placement-hint.is-ready b { color: #63dec1; }
 .editor-placement-hint.is-ready span { color: #a8dcd2; }
-.editor-map-viewport { display: grid; min-height: 0; flex: 1 1 auto; padding: clamp(18px, 2.4vw, 34px); background: #06121e; }
+.editor-map-viewport { display: flex; min-height: 0; flex: 1 1 auto; align-items: center; justify-content: center; overflow: hidden; padding: clamp(10px, 1.8vw, 24px); background: #06121e; }
 .editor-map-frame {
   position: relative;
   container-type: inline-size;
-  width: min(100%, 1450px);
-  margin: auto;
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
   aspect-ratio: 1774 / 887;
   overflow: hidden;
   border: 1px solid #1d5878;
@@ -1211,23 +1223,34 @@ pre {
   gap: 8px;
 }
 .editor-back {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #365a83;
+  border-radius: 6px;
+  padding: 0 13px;
+  background: #102238;
   color: #9ebbd5;
   font-size: 12px;
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
 }
-.editor-back:hover { color: #e2f4ff; }
+.editor-back:hover { border-color: #43a5db; background: #133050; color: #e2f4ff; }
+.editor-floor-control { position: relative; }
+.editor-floor-select { min-width: 155px; padding-right: 34px; cursor: pointer; }
+.editor-floor-control i { position: absolute; top: 50%; right: 12px; color: #66b9e7; font-size: 16px; font-style: normal; line-height: 1; pointer-events: none; transform: translateY(-58%); }
 
 .editor-object-bar {
   position: relative;
   z-index: 4;
   display: grid;
-  grid-template-columns: minmax(300px, 1.6fr) minmax(250px, 1fr) minmax(220px, 0.9fr);
-  gap: 12px;
+  grid-template-columns: minmax(255px, 320px) minmax(0, 1fr) minmax(245px, 310px);
+  gap: 10px;
   align-items: end;
-  margin: 16px 0;
-  padding: 14px 16px;
+  margin: 10px 0 12px;
+  padding: 10px 12px;
   border: 1px solid #263f5b;
   border-radius: 9px;
   background: #0c1727;
@@ -1306,6 +1329,45 @@ pre {
 }
 .editor-current-selection.is-ready { border-style: solid; border-color: #247a69; background: #0b292c; color: #8be2cc; }
 .editor-current-selection button { min-height: 25px; padding: 0 8px; font-size: 10px; }
+.editor-type-selectors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.editor-type-selector { position: relative; }
+.editor-type-selector > button {
+  display: flex;
+  width: 100%;
+  height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #29445f;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #091523;
+  color: #bdd4e9;
+  font: 700 11px Manrope;
+  cursor: pointer;
+}
+.editor-type-selector > button:hover,
+.editor-type-selector > button.active { border-color: #3d8bb7; background: #10283e; color: #e2f4ff; }
+.editor-type-selector > button span { color: #5daedf; }
+.editor-type-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  left: 0;
+  z-index: 6;
+  overflow: hidden;
+  border: 1px solid #315675;
+  border-radius: 7px;
+  background: #0c1929;
+  box-shadow: 0 16px 34px #020811cc;
+}
+.editor-type-menu input { border: 0; border-bottom: 1px solid #29445f; border-radius: 0; }
+.editor-type-menu > div { max-height: 248px; overflow: auto; }
+.editor-type-menu button { display: grid; width: 100%; gap: 2px; border: 0; border-bottom: 1px solid #1e334a; padding: 8px 10px; background: transparent; color: #dbeeff; text-align: left; cursor: pointer; }
+.editor-type-menu button:hover { background: #15324c; }
+.editor-type-menu b, .editor-type-menu small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-type-menu b { font-size: 10px; }
+.editor-type-menu small { color: #7e9ab5; font-size: 9px; }
+.editor-type-menu p { margin: 0; padding: 11px; color: #90a8bf; font-size: 10px; }
 .editor-save {
   border: 1px solid #294862;
   border-radius: 6px;

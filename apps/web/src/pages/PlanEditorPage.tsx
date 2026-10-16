@@ -15,6 +15,13 @@ import {
 
 type PaletteItem = { type: PlanElementType; item: PlanCatalogItem };
 type DragState = { id: string; pointerId: number };
+type CatalogType = Exclude<PlanElementType, 'label'>;
+
+const selectorTypes: Array<{ type: CatalogType; label: string }> = [
+  { type: 'door', label: 'Двері' },
+  { type: 'device', label: 'Контролери' },
+  { type: 'input', label: 'Датчики / входи' },
+];
 
 export function PlanEditorPage() {
   const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: getPlanCatalog });
@@ -26,6 +33,8 @@ export function PlanEditorPage() {
   const [selection, setSelection] = useState<PaletteItem>();
   const [label, setLabel] = useState('');
   const [search, setSearch] = useState('');
+  const [activeSelector, setActiveSelector] = useState<CatalogType>();
+  const [selectorSearch, setSelectorSearch] = useState('');
   const frameRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<DragState>();
   const catalog = catalogQuery.data;
@@ -39,6 +48,14 @@ export function PlanEditorPage() {
     if (!query) return [];
     return catalogItems.filter(({ item }) => `${item.name} ${item.token} ${item.model ?? ''} ${item.deviceToken ?? ''}`.toLocaleLowerCase('uk-UA').includes(query)).slice(0, 8);
   }, [catalogItems, search]);
+  const selectorItems = useMemo(() => {
+    if (!activeSelector) return [];
+    const query = selectorSearch.trim().toLocaleLowerCase('uk-UA');
+    return catalogItems
+      .filter(({ type }) => type === activeSelector)
+      .filter(({ item }) => !query || `${item.name} ${item.token} ${item.model ?? ''}`.toLocaleLowerCase('uk-UA').includes(query))
+      .slice(0, 8);
+  }, [activeSelector, catalogItems, selectorSearch]);
   const selectedDescription = useMemo(() => {
     if (!selection) return 'Оберіть об’єкт у верхній панелі або створіть текстову позначку.';
     return `Обрано: ${selection.item.name}. Клацни на схемі, щоб розмістити.`;
@@ -71,6 +88,12 @@ export function PlanEditorPage() {
   const chooseItem = (item: PaletteItem) => {
     setSelection(item);
     setSearch('');
+    setActiveSelector(undefined);
+    setSelectorSearch('');
+  };
+  const toggleSelector = (type: CatalogType) => {
+    setActiveSelector((current) => current === type ? undefined : type);
+    setSelectorSearch('');
   };
   const placeElement = (event: MouseEvent<HTMLDivElement>) => {
     if (!selection || !frameRef.current) return;
@@ -121,9 +144,12 @@ export function PlanEditorPage() {
           </div>
           <div className="editor-header-actions">
             <Link className="editor-back" to="/plans">← До живого плану</Link>
-            <select aria-label="Поверх для редагування" className="editor-floor-select" onChange={(event) => changeFloor(event.target.value)} value={floor}>
-              {floorOptions.map((option) => <option key={option}>{option}</option>)}
-            </select>
+            <div className="editor-floor-control">
+              <select aria-label="Поверх для редагування" className="editor-floor-select" onChange={(event) => changeFloor(event.target.value)} value={floor}>
+                {floorOptions.map((option) => <option key={option}>{option}</option>)}
+              </select>
+              <i aria-hidden="true">⌄</i>
+            </div>
             <button className={`editor-save ${isDirty ? 'is-dirty' : ''}`} disabled={!isDirty} onClick={saveElements} type="button">
               {isDirty ? 'Зберегти зміни' : 'Збережено'}
             </button>
@@ -134,10 +160,9 @@ export function PlanEditorPage() {
           <section className="catalog-error">Не вдалося отримати каталог: {catalogQuery.error.message}</section>
         ) : (
           <>
-            <section className="catalog-note"><b>Локальне збереження</b><span>Після змін натисни «Зберегти зміни». Прив’язки поки зберігаються у браузері цієї VM.</span></section>
             <section className="editor-object-bar" aria-label="Додати об’єкт на план">
               <div className="editor-object-search">
-                <label htmlFor="object-search">Об’єкт U‑PROX</label>
+                <label htmlFor="object-search">Загальний пошук U‑PROX</label>
                 <input
                   autoComplete="off"
                   id="object-search"
@@ -154,14 +179,29 @@ export function PlanEditorPage() {
                   )) : <p>Нічого не знайдено.</p>}
                 </div>}
               </div>
+              <div className="editor-type-selectors" aria-label="Об’єкти за типом">
+                {selectorTypes.map(({ type, label: typeLabel }) => (
+                  <div className="editor-type-selector" key={type}>
+                    <button aria-expanded={activeSelector === type} className={activeSelector === type ? 'active' : ''} onClick={() => toggleSelector(type)} type="button">
+                      {typeLabel}<span>⌄</span>
+                    </button>
+                    {activeSelector === type && <div className="editor-type-menu">
+                      <input autoFocus aria-label={`Пошук: ${typeLabel}`} onChange={(event) => setSelectorSearch(event.target.value)} placeholder={`Пошук у «${typeLabel}»`} value={selectorSearch} />
+                      <div>
+                        {selectorItems.length ? selectorItems.map(({ item }) => (
+                          <button key={item.token} onClick={() => chooseItem({ type, item })} type="button">
+                            <b>{item.name}</b><small>Токен {item.token}</small>
+                          </button>
+                        )) : <p>Нічого не знайдено.</p>}
+                      </div>
+                    </div>}
+                  </div>
+                ))}
+              </div>
               <div className="editor-label-bar">
                 <label htmlFor="plan-label">Напис</label>
                 <input id="plan-label" onChange={(event) => setLabel(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addLabel()} placeholder="Наприклад: Серверна" value={label} />
                 <button onClick={addLabel} type="button">Додати напис</button>
-              </div>
-              <div className={`editor-current-selection ${selection ? 'is-ready' : ''}`}>
-                <span>{selection ? `Обрано: ${selection.item.name}` : 'Оберіть об’єкт або створіть напис'}</span>
-                {selection && <button onClick={() => setSelection(undefined)} type="button">Скасувати</button>}
               </div>
             </section>
             <div className="plan-editor-workspace">
