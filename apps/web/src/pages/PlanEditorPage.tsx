@@ -46,15 +46,14 @@ export function PlanEditorPage() {
   const foundItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('uk-UA');
     if (!query) return [];
-    return catalogItems.filter(({ item }) => `${item.name} ${item.token} ${item.model ?? ''} ${item.deviceToken ?? ''}`.toLocaleLowerCase('uk-UA').includes(query)).slice(0, 8);
+    return catalogItems.filter(({ item }) => `${item.name} ${item.token} ${item.model ?? ''} ${item.deviceToken ?? ''}`.toLocaleLowerCase('uk-UA').includes(query));
   }, [catalogItems, search]);
   const selectorItems = useMemo(() => {
     if (!activeSelector) return [];
     const query = selectorSearch.trim().toLocaleLowerCase('uk-UA');
     return catalogItems
       .filter(({ type }) => type === activeSelector)
-      .filter(({ item }) => !query || `${item.name} ${item.token} ${item.model ?? ''}`.toLocaleLowerCase('uk-UA').includes(query))
-      .slice(0, 8);
+      .filter(({ item }) => !query || `${item.name} ${item.token} ${item.model ?? ''}`.toLocaleLowerCase('uk-UA').includes(query));
   }, [activeSelector, catalogItems, selectorSearch]);
   const selectedDescription = useMemo(() => {
     if (!selection) return 'Оберіть об’єкт у верхній панелі або створіть текстову позначку.';
@@ -95,6 +94,11 @@ export function PlanEditorPage() {
     setActiveSelector((current) => current === type ? undefined : type);
     setSelectorSearch('');
   };
+  const closeGlobalSearch = () => window.setTimeout(() => setSearch(''), 150);
+  const closeSelector = () => window.setTimeout(() => {
+    setActiveSelector(undefined);
+    setSelectorSearch('');
+  }, 150);
   const placeElement = (event: MouseEvent<HTMLDivElement>) => {
     if (!selection || !frameRef.current) return;
     const bounds = frameRef.current.getBoundingClientRect();
@@ -166,6 +170,7 @@ export function PlanEditorPage() {
                 <input
                   autoComplete="off"
                   id="object-search"
+                  onBlur={closeGlobalSearch}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Пошук за назвою або токеном: наприклад, Серверна або 15094"
                   value={search}
@@ -183,10 +188,10 @@ export function PlanEditorPage() {
                 {selectorTypes.map(({ type, label: typeLabel }) => (
                   <div className="editor-type-selector" key={type}>
                     <button aria-expanded={activeSelector === type} className={activeSelector === type ? 'active' : ''} onClick={() => toggleSelector(type)} type="button">
-                      {typeLabel}<span>⌄</span>
+                      {typeLabel}<span aria-hidden="true" />
                     </button>
                     {activeSelector === type && <div className="editor-type-menu">
-                      <input autoFocus aria-label={`Пошук: ${typeLabel}`} onChange={(event) => setSelectorSearch(event.target.value)} placeholder={`Пошук у «${typeLabel}»`} value={selectorSearch} />
+                      <input autoFocus aria-label={`Пошук: ${typeLabel}`} onBlur={closeSelector} onChange={(event) => setSelectorSearch(event.target.value)} placeholder={`Пошук у «${typeLabel}»`} value={selectorSearch} />
                       <div>
                         {selectorItems.length ? selectorItems.map(({ item }) => (
                           <button key={item.token} onClick={() => chooseItem({ type, item })} type="button">

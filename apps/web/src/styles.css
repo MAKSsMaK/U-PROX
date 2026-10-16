@@ -1240,7 +1240,15 @@ pre {
 .editor-back:hover { border-color: #43a5db; background: #133050; color: #e2f4ff; }
 .editor-floor-control { position: relative; }
 .editor-floor-select { min-width: 155px; padding-right: 34px; cursor: pointer; }
-.editor-floor-control i { position: absolute; top: 50%; right: 12px; color: #66b9e7; font-size: 16px; font-style: normal; line-height: 1; pointer-events: none; transform: translateY(-58%); }
+.editor-floor-control i,
+.editor-type-selector > button span {
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid #62b9e8;
+  border-bottom: 2px solid #62b9e8;
+  transform: rotate(45deg);
+}
+.editor-floor-control i { position: absolute; top: 43%; right: 14px; pointer-events: none; }
 
 .editor-object-bar {
   position: relative;
@@ -1287,13 +1295,23 @@ pre {
   top: calc(100% + 5px);
   right: 0;
   left: 0;
-  max-height: 292px;
+  max-height: 360px;
   overflow: auto;
   border: 1px solid #315675;
   border-radius: 7px;
   background: #0c1929;
   box-shadow: 0 16px 34px #020811bb;
+  scrollbar-color: #3b779f #081523;
+  scrollbar-width: thin;
 }
+.editor-search-results::-webkit-scrollbar,
+.editor-type-menu > div::-webkit-scrollbar { width: 8px; }
+.editor-search-results::-webkit-scrollbar-track,
+.editor-type-menu > div::-webkit-scrollbar-track { background: #081523; }
+.editor-search-results::-webkit-scrollbar-thumb,
+.editor-type-menu > div::-webkit-scrollbar-thumb { border: 2px solid #081523; border-radius: 8px; background: #3b779f; }
+.editor-search-results::-webkit-scrollbar-thumb:hover,
+.editor-type-menu > div::-webkit-scrollbar-thumb:hover { background: #5ba9d9; }
 .editor-search-results button {
   display: grid;
   grid-template-columns: 25px minmax(0, 1fr);
@@ -1347,7 +1365,6 @@ pre {
 }
 .editor-type-selector > button:hover,
 .editor-type-selector > button.active { border-color: #3d8bb7; background: #10283e; color: #e2f4ff; }
-.editor-type-selector > button span { color: #5daedf; }
 .editor-type-menu {
   position: absolute;
   top: calc(100% + 5px);
@@ -1361,7 +1378,7 @@ pre {
   box-shadow: 0 16px 34px #020811cc;
 }
 .editor-type-menu input { border: 0; border-bottom: 1px solid #29445f; border-radius: 0; }
-.editor-type-menu > div { max-height: 248px; overflow: auto; }
+.editor-type-menu > div { max-height: 360px; overflow: auto; scrollbar-color: #3b779f #081523; scrollbar-width: thin; }
 .editor-type-menu button { display: grid; width: 100%; gap: 2px; border: 0; border-bottom: 1px solid #1e334a; padding: 8px 10px; background: transparent; color: #dbeeff; text-align: left; cursor: pointer; }
 .editor-type-menu button:hover { background: #15324c; }
 .editor-type-menu b, .editor-type-menu small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
