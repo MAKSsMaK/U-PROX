@@ -329,10 +329,10 @@ select {
   outline-offset: 3px;
 }
 
-.marker.event-opened { color: #52da98; box-shadow: 0 0 0 4px #061523, 0 0 18px #3ce891; }
-.marker.event-closed { color: #ff646f; box-shadow: 0 0 0 4px #061523, 0 0 18px #ff646f; }
+.marker.event-opened,
+.marker.event-closed,
+.marker.event-activity { box-shadow: 0 0 0 3px #061523, 0 0 15px currentColor; }
 .marker.event-alert { color: #ff646f; box-shadow: 0 0 0 4px #061523, 0 0 22px #ff646f; }
-.marker.event-activity { color: #51aaff; box-shadow: 0 0 0 4px #061523, 0 0 16px #51aaff; }
 .marker-event-indicator {
   position: absolute;
   right: -3px;
@@ -342,6 +342,20 @@ select {
   border: 1px solid #061523;
   border-radius: 50%;
   background: currentColor;
+}
+.marker-event-wave {
+  position: absolute;
+  inset: -4px;
+  z-index: -1;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  animation: marker-event-wave 1.5s ease-out infinite;
+}
+@keyframes marker-event-wave {
+  0% { opacity: .9; transform: scale(.85); }
+  100% { opacity: 0; transform: scale(2.15); }
 }
 .marker-hover-label {
   position: absolute;
@@ -465,13 +479,19 @@ select {
   padding: 23px 19px 16px;
   border-bottom: 1px solid #22324a;
   display: flex;
+  align-items: center;
+  gap: 10px;
   justify-content: space-between;
 }
+.feed-title b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .feed-title em {
+  flex: 0 0 auto;
+  align-self: center;
+  white-space: nowrap;
   font: 700 10px Manrope;
   color: #45d68a;
   background: #103226;
-  padding: 5px;
+  padding: 5px 7px;
   font-style: normal;
 }
 .feed-title-events {

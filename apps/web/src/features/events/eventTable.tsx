@@ -28,6 +28,7 @@ export type UproxxEvent = {
 export type EventTableRow = {
   id: string;
   occurredAt: string;
+  occurredAtMs: number;
   photoToken?: string;
   employee: string;
   department: string;
@@ -98,6 +99,7 @@ export function toEventTableRows(payload: unknown): EventTableRow[] {
       return {
         id: String(event.Token ?? `${event.Issued}-${index}`),
         occurredAt: formatUproxxDate(event.Issued),
+        occurredAtMs: issuedMilliseconds(event.Issued),
         photoToken: imageToken === undefined ? undefined : String(imageToken),
         employee,
         department:

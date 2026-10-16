@@ -12,7 +12,7 @@ function eventState(eventName: string): MapEventState {
   const name = eventName.toLocaleLowerCase('uk-UA');
   if (name.includes('відчинен') || name.includes('відкрит')) return 'opened';
   if (name.includes('зачинен') || name.includes('закрит') || name.includes('заблок')) return 'closed';
-  if (name.includes('відмов') || name.includes('заборон') || name.includes('тривог')) return 'alert';
+  if (name.includes('відмов') || name.includes('заборон') || name.includes('тривог') || name.includes('обрив') || name.includes('несправ') || name.includes('зв’язок втрач')) return 'alert';
   return 'activity';
 }
 
@@ -131,6 +131,7 @@ export function FloorMap() {
             {visibleElements.map((element) => {
               const lastEvent = element.type === 'label' ? undefined : lastEventForElement(element, events);
               const lastState = lastEvent ? eventState(lastEvent.eventName) : undefined;
+              const hasFreshEvent = Boolean(lastEvent && Date.now() - lastEvent.occurredAtMs < 90_000);
               return element.type === 'label' ? (
                 <span className="map-plan-label" key={element.id} style={{ left: `${element.x}%`, top: `${element.y}%` }}>
                   {element.name}
@@ -138,7 +139,7 @@ export function FloorMap() {
               ) : (
                 <button
                   aria-label={element.name}
-                  className={`marker ${element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${showNames ? 'show-name' : ''} ${lastState ? `event-${lastState}` : ''} ${selected?.id === element.id ? 'selected' : ''}`}
+                  className={`marker ${element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${showNames ? 'show-name' : ''} ${lastState ? `event-${lastState}` : ''} ${hasFreshEvent ? 'is-recent' : ''} ${selected?.id === element.id ? 'selected' : ''}`}
                   key={element.id}
                   onClick={() => select({ id: element.id, name: element.name, type: element.type as 'door' | 'device' | 'input', token: element.token, detail: element.detail, deviceToken: element.deviceToken, lastEvent: lastEvent ? { name: lastEvent.eventName, occurredAt: lastEvent.occurredAt } : undefined, floor })}
                   style={{ left: `${element.x}%`, top: `${element.y}%` }}
@@ -147,6 +148,7 @@ export function FloorMap() {
                 >
                   {planElementIcon(element.type)}
                   {lastState && <i aria-label={`Остання подія: ${lastEvent?.eventName}`} className="marker-event-indicator" />}
+                  {hasFreshEvent && <span aria-hidden="true" className="marker-event-wave" />}
                   <span className="marker-hover-label" role="tooltip">{element.name}</span>
                 </button>
               );
