@@ -5,6 +5,7 @@ import { floorOptions, getFloorPlan } from '../../features/plans/floorPlans';
 
 export function FloorMap() {
   const floor = useStore((state) => state.floor);
+  const building = useStore((state) => state.building);
   const selected = useStore((state) => state.selected);
   const select = useStore((state) => state.select);
   const setFloor = useStore((state) => state.setFloor);
@@ -53,7 +54,7 @@ export function FloorMap() {
       <div className="plan-meta">
         <div>
           <strong>{floor.toUpperCase()}</strong>
-          <span>Адміністративна будівля · етап 1</span>
+          <span>{building} · локальний електронний план</span>
         </div>
         <div className="plan-levels" aria-label="Вибір поверху">
           {floorOptions.map((level) => (
@@ -104,7 +105,7 @@ export function FloorMap() {
                   aria-label={element.name}
                   className={`marker ${element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${selected?.id === element.id ? 'selected' : ''}`}
                   key={element.id}
-                  onClick={() => select({ id: element.id, name: element.name, type: element.type as 'door' | 'device' | 'input', token: element.token, detail: element.detail, floor })}
+                  onClick={() => select({ id: element.id, name: element.name, type: element.type as 'door' | 'device' | 'input', token: element.token, detail: element.detail, deviceToken: element.deviceToken, floor })}
                   style={{ left: `${element.x}%`, top: `${element.y}%` }}
                   title={`${element.name}${element.token ? ` · токен ${element.token}` : ''}`}
                   type="button"

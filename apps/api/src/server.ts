@@ -91,6 +91,11 @@ function mockResponse(path: string) {
         { Token: 41001, Name: 'Геркон службового входу', DeviceToken: 23880, Number: 1 },
       ],
     },
+    DeviceOutputGetList: {
+      DeviceOutput: [
+        { Token: 42001, Name: 'Замок службового входу', DeviceToken: 23880, WorkingMode: 0 },
+      ],
+    },
     EventGetListV2: { Event: [] },
     EmployeeGetList: { Employee: [] },
     DesktopLayoutGet: { Language: 'uk', UserToken: 0, EventColumns: [] },
@@ -164,6 +169,88 @@ app.get('/api/plan/catalog', async () => {
       unavailable(deviceResult, 'DeviceGetList'),
       unavailable(inputResult, 'DeviceInputGetList'),
     ].filter((warning): warning is string => Boolean(warning)),
+  };
+});
+
+const liveControllerParams = z.object({ token: z.coerce.number().int().positive() });
+
+type LiveSignal = {
+  token: string;
+  name: string;
+  deviceToken: string | null;
+  hardwareState: number | null;
+  healthStatus: number | null;
+  usage: number | null;
+  workingMode?: number | null;
+  connectedTo: { token: string; name: string } | null;
+};
+
+function numberOrNull(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function liveSignal(record: UproxxCatalogRecord, isOutput = false): LiveSignal {
+  const connectedTo = record.ConnectedTo as UproxxCatalogRecord | null | undefined;
+  return {
+    token: String(record.Token ?? ''),
+    name: String(record.Name ?? record.Caption ?? 'Без назви'),
+    deviceToken: record.DeviceToken === undefined || record.DeviceToken === null ? null : String(record.DeviceToken),
+    hardwareState: numberOrNull(record.HardwareState),
+    healthStatus: numberOrNull(record.HealthStatus),
+    usage: numberOrNull(record.Usage),
+    ...(isOutput ? { workingMode: numberOrNull(record.WorkingMode) } : {}),
+    connectedTo: connectedTo?.Token === undefined
+      ? null
+      : { token: String(connectedTo.Token), name: String(connectedTo.Name ?? 'Без назви') },
+  };
+}
+
+app.get('/api/plan/live/:token', async (request, reply) => {
+  const parsed = liveControllerParams.safeParse(request.params);
+  if (!parsed.success) return reply.code(400).send({ error: 'Invalid controller token' });
+  const { token } = parsed.data;
+  const listBody = {
+    Language: 'uk',
+    SubscriptionEnabled: true,
+    Limit: 2_000,
+    StartToken: 0,
+    DeviceToken: token,
+  };
+  const [devicesResult, inputsResult, outputsResult] = await Promise.allSettled([
+    uproxx('DeviceGetList', { Language: 'uk', Limit: 2_000, StartToken: 0 }),
+    uproxx('DeviceInputGetList', listBody),
+    uproxx('DeviceOutputGetList', listBody),
+  ]);
+  const warning = (result: PromiseSettledResult<unknown>, label: string) =>
+    result.status === 'rejected'
+      ? `${label}: ${result.reason instanceof Error ? result.reason.message : 'недоступно'}`
+      : null;
+  const controller = devicesResult.status === 'fulfilled'
+    ? records(devicesResult.value, 'Device').find((device) => String(device.Token) === String(token))
+    : undefined;
+  const inputs = inputsResult.status === 'fulfilled'
+    ? records(inputsResult.value, 'DeviceInput').map((item) => liveSignal(item))
+    : [];
+  const outputs = outputsResult.status === 'fulfilled'
+    ? records(outputsResult.value, 'DeviceOutput').map((item) => liveSignal(item, true))
+    : [];
+  return {
+    controller: controller
+      ? {
+          token: String(controller.Token ?? token),
+          name: String(controller.Name ?? 'Без назви'),
+          online: typeof controller.Online === 'boolean' ? controller.Online : null,
+          hardwareState: numberOrNull(controller.HardwareState),
+          healthStatus: numberOrNull(controller.HealthStatus),
+        }
+      : null,
+    inputs,
+    outputs,
+    warnings: [
+      warning(devicesResult, 'DeviceGetList'),
+      warning(inputsResult, 'DeviceInputGetList'),
+      warning(outputsResult, 'DeviceOutputGetList'),
+    ].filter((message): message is string => Boolean(message)),
   };
 });
 const eventsQuery = z.object({

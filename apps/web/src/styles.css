@@ -370,6 +370,8 @@ select {
   border-width: 0 0 0 1px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 .feed-title {
   padding: 23px 19px 16px;
@@ -393,6 +395,7 @@ select {
   background: #0a2c41;
 }
 .feed-events {
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   scrollbar-color: #426f99 #0c1929;
@@ -483,6 +486,30 @@ select {
   margin: 12px 0 0 !important;
   color: #7695ae !important;
   font-size: 10px !important;
+}
+.plan-live-telemetry {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin-top: 11px;
+  overflow: hidden;
+  border: 1px solid #1d3148;
+  border-radius: 5px;
+  background: #1d3148;
+}
+.plan-live-telemetry div {
+  display: grid;
+  gap: 2px;
+  padding: 7px;
+  background: #0c1b2d;
+}
+.plan-live-telemetry span {
+  color: #7893ad;
+  font-size: 9px;
+}
+.plan-live-telemetry b {
+  color: #d9efff;
+  font-size: 11px;
 }
 .plan-details-action {
   width: 100%;
@@ -1089,25 +1116,27 @@ pre {
   transform: translate(-50%, -50%);
   box-shadow: 0 0 0 2px #061523, 0 0 8px currentColor;
   cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 .editor-map-element:active { cursor: grabbing; }
 .editor-map-element.device { color: #4da9ff; }
 .editor-map-element.input { color: #f7c354; }
 .editor-map-element.label {
   width: auto;
-  max-width: 88px;
-  min-height: 18px;
+  max-width: clamp(38px, 9cqw, 62px);
+  min-height: clamp(12px, 2.2cqw, 16px);
   border-radius: 3px;
-  padding: 2px 5px;
+  padding: clamp(1px, 0.25cqw, 2px) clamp(3px, 0.7cqw, 5px);
   border-width: 1px;
   background: #08192be8;
   color: #d9f1ff;
-  font-size: 9px;
+  font-size: clamp(7px, 1.25cqw, 9px);
   line-height: 1.15;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
-  transform: translate(-50%, calc(-100% - 7px));
+  transform: translate(-50%, -145%);
   box-shadow: 0 0 0 1px #061523;
 }
 .editor-map-help { margin: 0; padding: 0 17px 15px; color: #7793ad; font-size: 10px; line-height: 1.45; }

@@ -28,6 +28,30 @@ export type PlanCatalog = {
   warnings: string[];
 };
 
+export type LiveSignal = {
+  token: string;
+  name: string;
+  deviceToken: string | null;
+  hardwareState: number | null;
+  healthStatus: number | null;
+  usage: number | null;
+  workingMode?: number | null;
+  connectedTo: { token: string; name: string } | null;
+};
+
+export type PlanLiveController = {
+  controller: {
+    token: string;
+    name: string;
+    online: boolean | null;
+    hardwareState: number | null;
+    healthStatus: number | null;
+  } | null;
+  inputs: LiveSignal[];
+  outputs: LiveSignal[];
+  warnings: string[];
+};
+
 export async function getHealth(): Promise<HealthResponse> {
   const response = await fetch('/api/health');
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
@@ -36,6 +60,12 @@ export async function getHealth(): Promise<HealthResponse> {
 
 export async function getPlanCatalog(): Promise<PlanCatalog> {
   const response = await fetch('/api/plan/catalog');
+  if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
+  return response.json();
+}
+
+export async function getPlanLiveController(token: string): Promise<PlanLiveController> {
+  const response = await fetch(`/api/plan/live/${encodeURIComponent(token)}`);
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
   return response.json();
 }

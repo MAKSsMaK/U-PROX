@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getEvents } from '../../api';
+import { getEvents, getPlanLiveController } from '../../api';
 import { toEventTableRows } from '../../features/events/eventTable';
 import { useStore } from '../../store';
 
@@ -29,7 +29,28 @@ export function LiveEventFeed() {
     queryFn: () => getEvents({ hours: 24, limit: 8 }),
     refetchInterval: 10_000,
   });
+  const controllerToken = selected?.type === 'device'
+    ? selected.token
+    : selected?.deviceToken;
+  const controllerQuery = useQuery({
+    queryKey: ['plan-live-controller', controllerToken],
+    queryFn: () => getPlanLiveController(controllerToken!),
+    refetchInterval: 10_000,
+    enabled: Boolean(controllerToken),
+  });
   const events = toEventTableRows(eventsQuery.data);
+  const controller = controllerQuery.data?.controller;
+  const liveState = !selected
+    ? undefined
+    : !controllerToken
+      ? 'Контролер не вказаний'
+    : controllerQuery.isLoading
+      ? 'Оновлення…'
+      : controller?.online === true
+        ? 'В мережі'
+        : controller?.online === false
+          ? 'Не в мережі'
+          : 'Стан не повернувся';
   return (
     <section className="feed">
       <div className="feed-title">
@@ -45,9 +66,15 @@ export function LiveEventFeed() {
             <div><dt>Тип</dt><dd>{objectType(selected.type)}</dd></div>
             <div><dt>U‑PROX токен</dt><dd>{selected.token || '—'}</dd></div>
             {selected.detail && <div><dt>Деталі</dt><dd>{selected.detail}</dd></div>}
-            <div><dt>Live-стан</dt><dd>Не синхронізовано</dd></div>
+            <div><dt>Live-стан</dt><dd>{liveState}</dd></div>
           </dl>
-          <p className="plan-details-note">Токен є, але окремий live-стан контролера ще не підключено до API.</p>
+          {controllerToken && <div className="plan-live-telemetry">
+            <div><span>Входи</span><b>{controllerQuery.data?.inputs.length ?? '—'}</b></div>
+            <div><span>Виходи</span><b>{controllerQuery.data?.outputs.length ?? '—'}</b></div>
+            <div><span>HardwareState</span><b>{controller?.hardwareState ?? '—'}</b></div>
+            <div><span>HealthStatus</span><b>{controller?.healthStatus ?? '—'}</b></div>
+          </div>}
+          <p className="plan-details-note">Дані DeviceInputGetList і DeviceOutputGetList, оновлення кожні 10 секунд. Числові коди не інтерпретуються без таблиці значень вашої версії U‑PROX.</p>
         </> : <div className="plan-details-empty">Клацни по збереженому маркеру на плані, щоб побачити його реальний токен і дані U‑PROX.</div>}
       </div>
       <div className="feed-title feed-title-events">

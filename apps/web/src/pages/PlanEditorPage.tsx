@@ -99,7 +99,11 @@ export function PlanEditorPage() {
     updateElements([...elements, {
       id: crypto.randomUUID(), type: selection.type,
       token: selection.type === 'label' ? undefined : selection.item.token,
-      name: selection.item.name, detail: selection.item.model ?? selection.item.deviceToken, x, y,
+      name: selection.item.name,
+      detail: selection.type === 'input' ? selection.item.deviceToken : selection.item.model ?? selection.item.deviceToken,
+      deviceToken: selection.item.deviceToken,
+      x,
+      y,
     }]);
     setSelection(undefined);
   };

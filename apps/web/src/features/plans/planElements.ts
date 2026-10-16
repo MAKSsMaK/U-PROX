@@ -6,6 +6,7 @@ export type PlanElement = {
   token?: string;
   name: string;
   detail?: string | null;
+  deviceToken?: string | null;
   x: number;
   y: number;
 };

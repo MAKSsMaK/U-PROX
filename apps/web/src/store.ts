@@ -7,6 +7,7 @@ export type PlanSelection = {
   type: 'door' | 'device' | 'input';
   token?: string;
   detail?: string | null;
+  deviceToken?: string | null;
   floor: string;
 };
 
