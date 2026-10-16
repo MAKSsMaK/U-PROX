@@ -8,6 +8,7 @@ export type PlanSelection = {
   token?: string;
   detail?: string | null;
   deviceToken?: string | null;
+  lastEvent?: { name: string; occurredAt: string };
   floor: string;
 };
 

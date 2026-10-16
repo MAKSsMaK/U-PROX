@@ -293,6 +293,35 @@ select {
   outline: 2px solid #e5f8ff;
   outline-offset: 3px;
 }
+
+.marker.event-opened { color: #52da98; box-shadow: 0 0 0 4px #061523, 0 0 18px #3ce891; }
+.marker.event-closed { color: #ff646f; box-shadow: 0 0 0 4px #061523, 0 0 18px #ff646f; }
+.marker.event-alert { color: #ff646f; box-shadow: 0 0 0 4px #061523, 0 0 22px #ff646f; }
+.marker.event-activity { color: #51aaff; box-shadow: 0 0 0 4px #061523, 0 0 16px #51aaff; }
+.marker-event-indicator {
+  position: absolute;
+  right: -3px;
+  top: -3px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid #061523;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.plan-last-event {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 10px;
+  border: 1px solid #1c4967;
+  border-radius: 7px;
+  background: #071a2c;
+}
+.plan-last-event span { color: #82a4bf; font-size: 11px; }
+.plan-last-event b { color: #e4f3ff; font-size: 13px; }
+.plan-last-event time { color: #5dbfff; font-size: 12px; }
+.plan-last-event p { margin: 0; color: #82a4bf; font-size: 12px; line-height: 1.4; }
 .sensor-marker {
   position: absolute;
   z-index: 3;
@@ -1124,6 +1153,8 @@ pre {
 .editor-map-element.input { color: #f7c354; }
 .editor-map-element.label {
   width: auto;
+  height: auto;
+  aspect-ratio: auto;
   max-width: clamp(38px, 9cqw, 62px);
   min-height: clamp(12px, 2.2cqw, 16px);
   border-radius: 3px;

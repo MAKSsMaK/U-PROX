@@ -25,8 +25,8 @@ function eventSeverity(name: string) {
 export function LiveEventFeed() {
   const selected = useStore((state) => state.selected);
   const eventsQuery = useQuery({
-    queryKey: ['plan-live-events'],
-    queryFn: () => getEvents({ hours: 24, limit: 8 }),
+    queryKey: ['plan-events', 24, 100],
+    queryFn: () => getEvents({ hours: 24, limit: 100 }),
     refetchInterval: 10_000,
   });
   const controllerToken = selected?.type === 'device'
@@ -38,7 +38,15 @@ export function LiveEventFeed() {
     refetchInterval: 10_000,
     enabled: Boolean(controllerToken),
   });
-  const events = toEventTableRows(eventsQuery.data);
+  const allEvents = toEventTableRows(eventsQuery.data);
+  const events = allEvents.slice(0, 8);
+  const selectedLastEvent = selected
+    ? (() => {
+        const event = allEvents.find((item) => item.senderToken === selected.token)
+          ?? allEvents.find((item) => item.accessPoint.trim().toLocaleLowerCase('uk-UA') === selected.name.trim().toLocaleLowerCase('uk-UA'));
+        return event ? { name: event.eventName, occurredAt: event.occurredAt } : selected.lastEvent;
+      })()
+    : undefined;
   const controller = controllerQuery.data?.controller;
   const liveState = !selected
     ? undefined
@@ -68,6 +76,10 @@ export function LiveEventFeed() {
             {selected.detail && <div><dt>Деталі</dt><dd>{selected.detail}</dd></div>}
             <div><dt>Live-стан</dt><dd>{liveState}</dd></div>
           </dl>
+          <div className="plan-last-event">
+            <span>Остання подія цієї точки</span>
+            {selectedLastEvent ? <><b>{selectedLastEvent.name}</b><time>{selectedLastEvent.occurredAt}</time></> : <p>За останні 24 години подію для цього токена не знайдено.</p>}
+          </div>
           {controllerToken && <div className="plan-live-telemetry">
             <div><span>Входи</span><b>{controllerQuery.data?.inputs.length ?? '—'}</b></div>
             <div><span>Виходи</span><b>{controllerQuery.data?.outputs.length ?? '—'}</b></div>

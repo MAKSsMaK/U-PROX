@@ -2,7 +2,7 @@ import type { DataTableColumn } from '../../components/tables/DataTable';
 import { EventAvatar } from '../../components/events/EventAvatar';
 
 type UproxxPerson = { Name?: string; Post?: string };
-type UproxxNamed = { Name?: string };
+type UproxxNamed = { Name?: string; Token?: string | number };
 type UproxxEmployee = {
   Token?: string | number;
   Name?: string;
@@ -32,6 +32,7 @@ export type EventTableRow = {
   employee: string;
   department: string;
   accessPoint: string;
+  senderToken?: string;
   eventName: string;
   cardCode: string;
   position: string;
@@ -86,6 +87,7 @@ export function toEventTableRows(payload: unknown): EventTableRow[] {
           event.Employee?.DepartmentName ||
           '—',
         accessPoint: event.Sender?.Name || '—',
+        senderToken: event.Sender?.Token === undefined ? undefined : String(event.Sender.Token),
         eventName: event.Message?.Name || 'Подія без назви',
         cardCode: event.CardCode || '—',
         position: event.User?.Post || event.Employee?.Post || '—',

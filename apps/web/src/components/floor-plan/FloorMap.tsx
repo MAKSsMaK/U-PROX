@@ -1,7 +1,32 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getEvents } from '../../api';
 import { useStore } from '../../store';
 import { planElementIcon, readPlanElements } from '../../features/plans/planElements';
 import { floorOptions, getFloorPlan } from '../../features/plans/floorPlans';
+import { toEventTableRows, type EventTableRow } from '../../features/events/eventTable';
+
+type MapEventState = 'opened' | 'closed' | 'alert' | 'activity';
+
+function eventState(eventName: string): MapEventState {
+  const name = eventName.toLocaleLowerCase('uk-UA');
+  if (name.includes('відчинен') || name.includes('відкрит')) return 'opened';
+  if (name.includes('зачинен') || name.includes('закрит') || name.includes('заблок')) return 'closed';
+  if (name.includes('відмов') || name.includes('заборон') || name.includes('тривог')) return 'alert';
+  return 'activity';
+}
+
+function lastEventForElement(
+  element: { token?: string; name: string },
+  events: EventTableRow[],
+) {
+  const tokenMatch = element.token
+    ? events.find((event) => event.senderToken === element.token)
+    : undefined;
+  if (tokenMatch) return tokenMatch;
+  const name = element.name.trim().toLocaleLowerCase('uk-UA');
+  return name ? events.find((event) => event.accessPoint.trim().toLocaleLowerCase('uk-UA') === name) : undefined;
+}
 
 export function FloorMap() {
   const floor = useStore((state) => state.floor);
@@ -13,6 +38,12 @@ export function FloorMap() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [imageUnavailable, setImageUnavailable] = useState(false);
   const [savedElements, setSavedElements] = useState(() => readPlanElements(floor));
+  const eventsQuery = useQuery({
+    queryKey: ['plan-events', 24, 100],
+    queryFn: () => getEvents({ hours: 24, limit: 100 }),
+    refetchInterval: 10_000,
+  });
+  const events = toEventTableRows(eventsQuery.data);
   const dragStart = useRef<{ x: number; y: number; panX: number; panY: number }>();
   const plan = getFloorPlan(floor);
   const changeZoom = (change: number) =>
@@ -95,25 +126,28 @@ export function FloorMap() {
               onError={() => setImageUnavailable(true)}
               src={plan.imageUrl}
             />
-            {savedElements.map((element) =>
-              element.type === 'label' ? (
+            {savedElements.map((element) => {
+              const lastEvent = element.type === 'label' ? undefined : lastEventForElement(element, events);
+              const lastState = lastEvent ? eventState(lastEvent.eventName) : undefined;
+              return element.type === 'label' ? (
                 <span className="map-plan-label" key={element.id} style={{ left: `${element.x}%`, top: `${element.y}%` }}>
                   {element.name}
                 </span>
               ) : (
                 <button
                   aria-label={element.name}
-                  className={`marker ${element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${selected?.id === element.id ? 'selected' : ''}`}
+                  className={`marker ${element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${lastState ? `event-${lastState}` : ''} ${selected?.id === element.id ? 'selected' : ''}`}
                   key={element.id}
-                  onClick={() => select({ id: element.id, name: element.name, type: element.type as 'door' | 'device' | 'input', token: element.token, detail: element.detail, deviceToken: element.deviceToken, floor })}
+                  onClick={() => select({ id: element.id, name: element.name, type: element.type as 'door' | 'device' | 'input', token: element.token, detail: element.detail, deviceToken: element.deviceToken, lastEvent: lastEvent ? { name: lastEvent.eventName, occurredAt: lastEvent.occurredAt } : undefined, floor })}
                   style={{ left: `${element.x}%`, top: `${element.y}%` }}
-                  title={`${element.name}${element.token ? ` · токен ${element.token}` : ''}`}
+                  title={lastEvent ? `${element.name} · ${lastEvent.eventName} · ${lastEvent.occurredAt}` : `${element.name}${element.token ? ` · токен ${element.token}` : ''}`}
                   type="button"
                 >
                   {planElementIcon(element.type)}
+                  {lastState && <i aria-label={`Остання подія: ${lastEvent?.eventName}`} className="marker-event-indicator" />}
                 </button>
-              ),
-            )}
+              );
+            })}
           </div>
         ) : (
           <div className="plan-empty-state">
