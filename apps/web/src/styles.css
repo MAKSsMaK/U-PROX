@@ -346,7 +346,7 @@ select {
 .marker-event-wave {
   position: absolute;
   inset: -4px;
-  z-index: -1;
+  z-index: 0;
   border: 2px solid currentColor;
   border-radius: 50%;
   opacity: 0;

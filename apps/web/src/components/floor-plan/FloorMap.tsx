@@ -131,7 +131,7 @@ export function FloorMap() {
             {visibleElements.map((element) => {
               const lastEvent = element.type === 'label' ? undefined : lastEventForElement(element, events);
               const lastState = lastEvent ? eventState(lastEvent.eventName) : undefined;
-              const hasFreshEvent = Boolean(lastEvent && Date.now() - lastEvent.occurredAtMs < 3_000);
+              const hasFreshEvent = Boolean(lastEvent && Date.now() - lastEvent.occurredAtMs < 5_000);
               return element.type === 'label' ? (
                 <span className="map-plan-label" key={element.id} style={{ left: `${element.x}%`, top: `${element.y}%` }}>
                   {element.name}
