@@ -262,12 +262,42 @@ select {
   background-size: 30px 30px;
   pointer-events: none;
 }
+.plan-display-filters {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  max-width: min(73vw, 720px);
+  overflow: auto hidden;
+  border: 1px solid #1c4666;
+  border-radius: 6px;
+  padding: 4px;
+  background: #081827e8;
+  scrollbar-width: none;
+  pointer-events: auto;
+}
+.plan-display-filters::-webkit-scrollbar { display: none; }
+.plan-display-filters span { margin: 0 5px 0 4px; color: #7896ad; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.plan-display-filters i { width: 1px; height: 20px; margin: 0 3px; background: #244661; }
+.plan-display-filters button {
+  border: 0;
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: transparent;
+  color: #91abc0;
+  font: 700 10px Manrope;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.plan-display-filters button:hover { background: #112c42; color: #d8f1ff; }
+.plan-display-filters button.active { background: #13506f; color: #e6f8ff; box-shadow: inset 0 0 0 1px #289bd0; }
 .marker {
   position: absolute;
   z-index: 3;
   display: flex;
-  width: clamp(24px, 2cqw, 28px);
-  height: clamp(24px, 2cqw, 28px);
+  width: clamp(19px, 1.65cqw, 23px);
+  height: clamp(19px, 1.65cqw, 23px);
   align-items: center;
   justify-content: center;
   border: 2px solid currentColor;
@@ -275,7 +305,7 @@ select {
   background: #071827;
   color: inherit;
   cursor: pointer;
-  font: 800 clamp(12px, 1.1cqw, 14px) / 1 Manrope;
+  font: 800 clamp(10px, 0.9cqw, 12px) / 1 Manrope;
   text-align: center;
   transform: translate(-50%, -50%);
   box-shadow:
@@ -313,6 +343,30 @@ select {
   border-radius: 50%;
   background: currentColor;
 }
+.marker-hover-label {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 5;
+  max-width: 170px;
+  overflow: hidden;
+  border: 1px solid #40769a;
+  border-radius: 5px;
+  padding: 4px 7px;
+  background: #071827f2;
+  box-shadow: 0 6px 16px #020811aa;
+  color: #e5f5ff;
+  font: 700 10px/1.25 Manrope;
+  opacity: 0;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  transform: translate(-50%, 3px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  white-space: nowrap;
+}
+.marker:hover .marker-hover-label,
+.marker:focus-visible .marker-hover-label,
+.marker.show-name .marker-hover-label { opacity: 1; transform: translate(-50%, 0); }
 
 .plan-last-event {
   display: grid;
@@ -1242,7 +1296,16 @@ pre {
 }
 .editor-back:hover { border-color: #43a5db; background: #133050; color: #e2f4ff; }
 .editor-floor-control { position: relative; }
-.editor-floor-select { min-width: 155px; padding-right: 34px; cursor: pointer; }
+.editor-floor-select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  min-width: 155px;
+  padding-right: 34px;
+  background-image: none;
+  cursor: pointer;
+}
+.editor-floor-select::-ms-expand { display: none; }
 .editor-floor-control i,
 .editor-type-selector > button span {
   width: 7px;

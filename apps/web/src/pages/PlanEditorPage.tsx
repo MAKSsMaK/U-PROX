@@ -152,7 +152,7 @@ export function PlanEditorPage() {
               <select aria-label="Поверх для редагування" className="editor-floor-select" onChange={(event) => changeFloor(event.target.value)} value={floor}>
                 {floorOptions.map((option) => <option key={option}>{option}</option>)}
               </select>
-              <i aria-hidden="true">⌄</i>
+              <i aria-hidden="true" />
             </div>
             <button className={`editor-save ${isDirty ? 'is-dirty' : ''}`} disabled={!isDirty} onClick={saveElements} type="button">
               {isDirty ? 'Зберегти зміни' : 'Збережено'}

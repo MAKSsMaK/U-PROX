@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getEvents } from '../../api';
 import { useStore } from '../../store';
 import { planElementIcon, readPlanElements } from '../../features/plans/planElements';
-import { floorOptions, getFloorPlan } from '../../features/plans/floorPlans';
+import { getFloorPlan } from '../../features/plans/floorPlans';
 import { toEventTableRows, type EventTableRow } from '../../features/events/eventTable';
 
 type MapEventState = 'opened' | 'closed' | 'alert' | 'activity';
@@ -33,17 +33,23 @@ export function FloorMap() {
   const building = useStore((state) => state.building);
   const selected = useStore((state) => state.selected);
   const select = useStore((state) => state.select);
-  const setFloor = useStore((state) => state.setFloor);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [imageUnavailable, setImageUnavailable] = useState(false);
   const [savedElements, setSavedElements] = useState(() => readPlanElements(floor));
+  const [visibleTypes, setVisibleTypes] = useState({ door: true, device: true, input: true });
+  const [showNames, setShowNames] = useState(false);
+  const [showTextLabels, setShowTextLabels] = useState(true);
   const eventsQuery = useQuery({
     queryKey: ['plan-events', 24, 100],
     queryFn: () => getEvents({ hours: 24, limit: 100 }),
     refetchInterval: 10_000,
   });
   const events = toEventTableRows(eventsQuery.data);
+  const visibleElements = savedElements.filter((element) => {
+    if (element.type === 'label') return showTextLabels;
+    return visibleTypes[element.type];
+  });
   const dragStart = useRef<{ x: number; y: number; panX: number; panY: number }>();
   const plan = getFloorPlan(floor);
   const changeZoom = (change: number) =>
@@ -79,6 +85,9 @@ export function FloorMap() {
   const endPan = () => {
     dragStart.current = undefined;
   };
+  const allTypesVisible = Object.values(visibleTypes).every(Boolean);
+  const toggleType = (type: keyof typeof visibleTypes) =>
+    setVisibleTypes((types) => ({ ...types, [type]: !types[type] }));
 
   return (
     <section className="electronic-plan" aria-label={`Електронний план: ${floor}`}>
@@ -87,17 +96,15 @@ export function FloorMap() {
           <strong>{floor.toUpperCase()}</strong>
           <span>{building} · локальний електронний план</span>
         </div>
-        <div className="plan-levels" aria-label="Вибір поверху">
-          {floorOptions.map((level) => (
-            <button
-              className={floor === level ? 'active' : ''}
-              key={level}
-              onClick={() => setFloor(level)}
-              type="button"
-            >
-              {level}
-            </button>
-          ))}
+        <div className="plan-display-filters" aria-label="Фільтри відображення">
+          <span>Показати</span>
+          <button className={allTypesVisible ? 'active' : ''} onClick={() => setVisibleTypes(allTypesVisible ? { door: false, device: false, input: false } : { door: true, device: true, input: true })} type="button">Усі</button>
+          <button aria-pressed={visibleTypes.door} className={visibleTypes.door ? 'active' : ''} onClick={() => toggleType('door')} type="button">Двері</button>
+          <button aria-pressed={visibleTypes.device} className={visibleTypes.device ? 'active' : ''} onClick={() => toggleType('device')} type="button">Контролери</button>
+          <button aria-pressed={visibleTypes.input} className={visibleTypes.input ? 'active' : ''} onClick={() => toggleType('input')} type="button">Датчики</button>
+          <i />
+          <button aria-pressed={showNames} className={showNames ? 'active' : ''} onClick={() => setShowNames((value) => !value)} type="button">Назви</button>
+          <button aria-pressed={showTextLabels} className={showTextLabels ? 'active' : ''} onClick={() => setShowTextLabels((value) => !value)} type="button">Написи</button>
         </div>
       </div>
       <div
@@ -126,7 +133,7 @@ export function FloorMap() {
               onError={() => setImageUnavailable(true)}
               src={plan.imageUrl}
             />
-            {savedElements.map((element) => {
+            {visibleElements.map((element) => {
               const lastEvent = element.type === 'label' ? undefined : lastEventForElement(element, events);
               const lastState = lastEvent ? eventState(lastEvent.eventName) : undefined;
               return element.type === 'label' ? (
@@ -136,7 +143,7 @@ export function FloorMap() {
               ) : (
                 <button
                   aria-label={element.name}
-                  className={`marker ${element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${lastState ? `event-${lastState}` : ''} ${selected?.id === element.id ? 'selected' : ''}`}
+                  className={`marker ${element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${showNames ? 'show-name' : ''} ${lastState ? `event-${lastState}` : ''} ${selected?.id === element.id ? 'selected' : ''}`}
                   key={element.id}
                   onClick={() => select({ id: element.id, name: element.name, type: element.type as 'door' | 'device' | 'input', token: element.token, detail: element.detail, deviceToken: element.deviceToken, lastEvent: lastEvent ? { name: lastEvent.eventName, occurredAt: lastEvent.occurredAt } : undefined, floor })}
                   style={{ left: `${element.x}%`, top: `${element.y}%` }}
@@ -145,6 +152,7 @@ export function FloorMap() {
                 >
                   {planElementIcon(element.type)}
                   {lastState && <i aria-label={`Остання подія: ${lastEvent?.eventName}`} className="marker-event-indicator" />}
+                  <span className="marker-hover-label" role="tooltip">{element.name}</span>
                 </button>
               );
             })}
