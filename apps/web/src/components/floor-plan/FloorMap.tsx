@@ -35,6 +35,7 @@ export function FloorMap() {
   const [visibleTypes, setVisibleTypes] = useState({ door: true, device: true, input: true });
   const [showNames, setShowNames] = useState(false);
   const [showTextLabels, setShowTextLabels] = useState(true);
+  const [pulseUntil, setPulseUntil] = useState<Record<string, number>>({});
   const eventsQuery = useQuery({
     queryKey: ['plan-events', 24, 100],
     queryFn: () => getEvents({ hours: 24, limit: 100 }),
@@ -46,6 +47,8 @@ export function FloorMap() {
     return visibleTypes[element.type];
   });
   const dragStart = useRef<{ x: number; y: number; panX: number; panY: number }>();
+  const observedEventIds = useRef(new Map<string, string>());
+  const eventsWereObserved = useRef(false);
   const plan = getFloorPlan(floor);
   const changeZoom = (change: number) =>
     setZoom((current) => {
@@ -59,8 +62,45 @@ export function FloorMap() {
     setZoom(1);
     setImageUnavailable(false);
     setSavedElements(readPlanElements(floor));
+    observedEventIds.current.clear();
+    eventsWereObserved.current = false;
+    setPulseUntil({});
     select(undefined);
   }, [floor]);
+
+  useEffect(() => {
+    if (!eventsQuery.data) return;
+    const latestEvents = toEventTableRows(eventsQuery.data);
+    const nextObserved = new Map<string, string>();
+    const newlyObserved: Record<string, number> = {};
+
+    savedElements.forEach((element) => {
+      if (element.type === 'label') return;
+      const lastEvent = lastEventForElement(element, latestEvents);
+      if (!lastEvent) return;
+      nextObserved.set(element.id, lastEvent.id);
+      if (eventsWereObserved.current && observedEventIds.current.get(element.id) && observedEventIds.current.get(element.id) !== lastEvent.id) {
+        newlyObserved[element.id] = Date.now() + 5_000;
+      }
+    });
+
+    observedEventIds.current = nextObserved;
+    eventsWereObserved.current = true;
+    if (Object.keys(newlyObserved).length) {
+      setPulseUntil((current) => ({ ...current, ...newlyObserved }));
+    }
+  }, [eventsQuery.data, savedElements]);
+
+  useEffect(() => {
+    const expirations = Object.values(pulseUntil);
+    if (!expirations.length) return;
+    const delay = Math.max(0, Math.min(...expirations) - Date.now());
+    const timer = window.setTimeout(() => {
+      const now = Date.now();
+      setPulseUntil((current) => Object.fromEntries(Object.entries(current).filter(([, expiresAt]) => expiresAt > now)));
+    }, delay + 20);
+    return () => window.clearTimeout(timer);
+  }, [pulseUntil]);
 
   const beginPan = (event: PointerEvent<HTMLDivElement>) => {
     if (zoom <= 1 || event.target instanceof HTMLButtonElement) return;
@@ -131,7 +171,9 @@ export function FloorMap() {
             {visibleElements.map((element) => {
               const lastEvent = element.type === 'label' ? undefined : lastEventForElement(element, events);
               const lastState = lastEvent ? eventState(lastEvent.eventName) : undefined;
-              const hasFreshEvent = Boolean(lastEvent && Date.now() - lastEvent.occurredAtMs < 8_000);
+              const hasFreshEvent = Boolean(
+                lastEvent && (pulseUntil[element.id] > Date.now() || Date.now() - lastEvent.occurredAtMs < 5_000),
+              );
               return element.type === 'label' ? (
                 <span className="map-plan-label" key={element.id} style={{ left: `${element.x}%`, top: `${element.y}%` }}>
                   {element.name}

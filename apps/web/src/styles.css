@@ -345,17 +345,18 @@ select {
 }
 .marker-event-wave {
   position: absolute;
-  inset: -4px;
+  inset: -5px;
   z-index: 0;
-  border: 2px solid currentColor;
+  border: 2.5px solid currentColor;
   border-radius: 50%;
   opacity: 0;
   pointer-events: none;
-  animation: marker-event-wave 1.5s ease-out infinite;
+  box-shadow: 0 0 8px currentColor, inset 0 0 5px currentColor;
+  animation: marker-event-wave 1.35s ease-out infinite;
 }
 @keyframes marker-event-wave {
-  0% { opacity: .9; transform: scale(.85); }
-  100% { opacity: 0; transform: scale(2.15); }
+  0% { opacity: 1; transform: scale(.8); }
+  100% { opacity: 0; transform: scale(2.45); }
 }
 .marker-hover-label {
   position: absolute;
