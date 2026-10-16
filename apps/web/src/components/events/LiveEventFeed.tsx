@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getEvents, getPlanLiveController } from '../../api';
-import { toEventTableRows } from '../../features/events/eventTable';
+import { eventMatchesObject, toEventTableRows } from '../../features/events/eventTable';
 import { useStore } from '../../store';
 
 function objectType(type?: 'door' | 'device' | 'input') {
@@ -39,14 +39,11 @@ export function LiveEventFeed() {
     enabled: Boolean(controllerToken),
   });
   const allEvents = toEventTableRows(eventsQuery.data);
-  const events = allEvents.slice(0, 8);
-  const selectedLastEvent = selected
-    ? (() => {
-        const event = allEvents.find((item) => item.senderToken === selected.token)
-          ?? allEvents.find((item) => item.accessPoint.trim().toLocaleLowerCase('uk-UA') === selected.name.trim().toLocaleLowerCase('uk-UA'));
-        return event ? { name: event.eventName, occurredAt: event.occurredAt } : selected.lastEvent;
-      })()
-    : undefined;
+  const selectedEvents = selected ? allEvents.filter((event) => eventMatchesObject(event, selected)) : [];
+  const events = (selected ? selectedEvents : allEvents).slice(0, 8);
+  const selectedLastEvent = selectedEvents[0]
+    ? { name: selectedEvents[0].eventName, occurredAt: selectedEvents[0].occurredAt }
+    : selected?.lastEvent;
   const controller = controllerQuery.data?.controller;
   const liveState = !selected
     ? undefined
@@ -90,13 +87,13 @@ export function LiveEventFeed() {
         </> : <div className="plan-details-empty">Клацни по збереженому маркеру на плані, щоб побачити його реальний токен і дані U‑PROX.</div>}
       </div>
       <div className="feed-title feed-title-events">
-        <b>Останні події U‑PROX</b>
+        <b>{selected ? `Події: ${selected.name}` : 'Останні події U‑PROX'}</b>
         <em>{eventsQuery.isError ? 'ПОМИЛКА' : 'LIVE'}</em>
       </div>
       <div className="feed-events">
         {eventsQuery.isLoading && <p className="feed-empty">Завантаження подій…</p>}
         {eventsQuery.isError && <p className="feed-empty feed-error">Не вдалося отримати події.</p>}
-        {!eventsQuery.isLoading && !eventsQuery.isError && events.length === 0 && <p className="feed-empty">U‑PROX не повернув подій за останні 24 години.</p>}
+        {!eventsQuery.isLoading && !eventsQuery.isError && events.length === 0 && <p className="feed-empty">{selected ? 'Для вибраного об’єкта подій за останні 24 години не знайдено.' : 'U‑PROX не повернув подій за останні 24 години.'}</p>}
         {!eventsQuery.isError && events.map((event) => (
           <article className={eventSeverity(event.eventName)} key={event.id}>
             <i />

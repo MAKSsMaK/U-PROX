@@ -38,6 +38,25 @@ export type EventTableRow = {
   position: string;
 };
 
+type EventObject = { token?: string; name: string };
+
+function normalizedWords(value: string) {
+  return value
+    .toLocaleLowerCase('uk-UA')
+    .replace(/[^a-zа-яіїєґ0-9]+/giu, ' ')
+    .split(' ')
+    .filter((word) => word.length >= 5)
+    .map((word) => word.slice(0, 6));
+}
+
+/** Match by U-PROX sender token first; name stems are a fallback for older API responses. */
+export function eventMatchesObject(event: EventTableRow, object: EventObject) {
+  if (object.token && event.senderToken === object.token) return true;
+  const objectWords = normalizedWords(object.name);
+  const pointWords = normalizedWords(event.accessPoint);
+  return objectWords.some((word) => pointWords.includes(word));
+}
+
 function formatUproxxDate(value?: string) {
   const milliseconds = value?.match(/\d+/)?.[0];
   if (!milliseconds) return '—';

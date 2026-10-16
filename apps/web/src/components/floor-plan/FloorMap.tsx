@@ -4,7 +4,7 @@ import { getEvents } from '../../api';
 import { useStore } from '../../store';
 import { planElementIcon, readPlanElements } from '../../features/plans/planElements';
 import { getFloorPlan } from '../../features/plans/floorPlans';
-import { toEventTableRows, type EventTableRow } from '../../features/events/eventTable';
+import { eventMatchesObject, toEventTableRows, type EventTableRow } from '../../features/events/eventTable';
 
 type MapEventState = 'opened' | 'closed' | 'alert' | 'activity';
 
@@ -20,12 +20,7 @@ function lastEventForElement(
   element: { token?: string; name: string },
   events: EventTableRow[],
 ) {
-  const tokenMatch = element.token
-    ? events.find((event) => event.senderToken === element.token)
-    : undefined;
-  if (tokenMatch) return tokenMatch;
-  const name = element.name.trim().toLocaleLowerCase('uk-UA');
-  return name ? events.find((event) => event.accessPoint.trim().toLocaleLowerCase('uk-UA') === name) : undefined;
+  return events.find((event) => eventMatchesObject(event, element));
 }
 
 export function FloorMap() {
