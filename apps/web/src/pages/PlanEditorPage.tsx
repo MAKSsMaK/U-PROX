@@ -1,7 +1,9 @@
-import { useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getPlanCatalog, type PlanCatalogItem } from '../api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
+import { useStore } from '../store';
+import { floorOptions, getFloorPlan } from '../features/plans/floorPlans';
 import {
   planElementIcon,
   readPlanElements,
@@ -11,6 +13,7 @@ import {
 } from '../features/plans/planElements';
 
 type PaletteItem = { type: PlanElementType; item: PlanCatalogItem };
+type DragState = { id: string; pointerId: number };
 
 type CatalogSectionProps = {
   items: PlanCatalogItem[];
@@ -48,10 +51,14 @@ function CatalogSection({ items, onSelect, selectedToken, title, type }: Catalog
 
 export function PlanEditorPage() {
   const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: getPlanCatalog });
-  const [elements, setElements] = useState<PlanElement[]>(readPlanElements);
+  const floor = useStore((state) => state.floor);
+  const setFloor = useStore((state) => state.setFloor);
+  const plan = getFloorPlan(floor);
+  const [elements, setElements] = useState<PlanElement[]>(() => readPlanElements(floor));
   const [selection, setSelection] = useState<PaletteItem>();
   const [label, setLabel] = useState('');
   const frameRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<DragState>();
   const catalog = catalogQuery.data;
   const selectionKey = selection ? `${selection.type}-${selection.item.token}` : undefined;
   const selectedDescription = useMemo(() => {
@@ -59,9 +66,14 @@ export function PlanEditorPage() {
     return `Обрано: ${selection.item.name}. Клацни на схемі, щоб розмістити.`;
   }, [selection]);
 
+  useEffect(() => {
+    setElements(readPlanElements(floor));
+    setSelection(undefined);
+  }, [floor]);
+
   const saveElements = (next: PlanElement[]) => {
     setElements(next);
-    writePlanElements(next);
+    writePlanElements(floor, next);
   };
   const addLabel = () => {
     const normalized = label.trim();
@@ -82,6 +94,26 @@ export function PlanEditorPage() {
     setSelection(undefined);
   };
   const removeElement = (id: string) => saveElements(elements.filter((element) => element.id !== id));
+  const startDrag = (event: PointerEvent<HTMLButtonElement>, id: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragState.current = { id, pointerId: event.pointerId };
+    frameRef.current?.setPointerCapture(event.pointerId);
+  };
+  const moveElement = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragState.current;
+    if (!drag || !frameRef.current) return;
+    const bounds = frameRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100));
+    const y = Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100));
+    const next = elements.map((element) => (element.id === drag.id ? { ...element, x, y } : element));
+    saveElements(next);
+  };
+  const stopDrag = (event?: PointerEvent<HTMLDivElement>) => {
+    const drag = dragState.current;
+    if (drag && event?.currentTarget.hasPointerCapture(drag.pointerId)) event.currentTarget.releasePointerCapture(drag.pointerId);
+    dragState.current = undefined;
+  };
 
   return (
     <DashboardLayout>
@@ -90,9 +122,14 @@ export function PlanEditorPage() {
           <div>
             <p className="eyebrow">ЕТАП 3 · ПРИВ’ЯЗКА ДО ПЛАНУ</p>
             <h1>Редактор плану</h1>
-            <span>Обери реальний об’єкт U‑PROX, клацни на схемі й перевір його токен.</span>
+            <span>Обери реальний об’єкт U‑PROX, клацни на схемі й перевір його токен. Прив’язки окремі для кожного поверху.</span>
           </div>
-          <button className="catalog-refresh" onClick={() => catalogQuery.refetch()} type="button">Оновити з U‑PROX</button>
+          <div className="editor-header-actions">
+            <select aria-label="Поверх для редагування" className="editor-floor-select" onChange={(event) => setFloor(event.target.value)} value={floor}>
+              {floorOptions.map((option) => <option key={option}>{option}</option>)}
+            </select>
+            <button className="catalog-refresh" onClick={() => catalogQuery.refetch()} type="button">Оновити з U‑PROX</button>
+          </div>
         </header>
         {catalogQuery.isError ? (
           <section className="catalog-error">Не вдалося отримати каталог: {catalogQuery.error.message}</section>
@@ -101,7 +138,7 @@ export function PlanEditorPage() {
             <section className="catalog-note"><b>Локальне збереження</b><span>Прив’язки зберігаються у браузері цієї VM. Після перевірки перенесемо їх до спільної БД.</span></section>
             <div className="plan-editor-workspace">
               <aside className="editor-palette" aria-label="Об’єкти для плану">
-                <div className="editor-palette-intro"><b>1. Обери об’єкт</b><span>Потім клацни по плану.</span></div>
+                <div className="editor-palette-intro"><b>1. Обери об’єкт</b><span>Потім клацни по плану. Усі створені прив’язки нижче вже збережені.</span></div>
                 <div className="label-composer">
                   <label htmlFor="plan-label">Напис на плані</label>
                   <div>
@@ -116,23 +153,32 @@ export function PlanEditorPage() {
               <section className="editor-map-panel">
                 <div className={`editor-placement-hint ${selection ? 'is-ready' : ''}`}><b>2. Розмісти на плані</b><span>{selectedDescription}</span></div>
                 <div className="editor-map-viewport">
-                  <div className={`editor-map-frame ${selection ? 'is-placing' : ''}`} onClick={placeElement} ref={frameRef}>
-                    <img alt="План третього поверху суду" src="/floor-plans/court-floor-3-blueprint.png" />
+                  {plan ? <div
+                    className={`editor-map-frame ${selection ? 'is-placing' : ''}`}
+                    onClick={placeElement}
+                    onPointerCancel={stopDrag}
+                    onPointerMove={moveElement}
+                    onPointerUp={stopDrag}
+                    ref={frameRef}
+                    style={{ aspectRatio: plan.aspectRatio }}
+                  >
+                    <img alt={plan.alt} src={plan.imageUrl} />
                     {elements.map((element) => (
                       <button
                         className={`editor-map-element ${element.type}`}
                         key={element.id}
-                        onClick={(event) => { event.stopPropagation(); removeElement(element.id); }}
+                        onClick={(event) => event.stopPropagation()}
+                        onPointerDown={(event) => startDrag(event, element.id)}
                         style={{ left: `${element.x}%`, top: `${element.y}%` }}
-                        title={`Прибрати: ${element.name}`}
+                        title={`Перетягни: ${element.name}`}
                         type="button"
                       >
                         {element.type === 'label' ? element.name : planElementIcon(element.type)}
                       </button>
                     ))}
-                  </div>
+                  </div> : <div className="editor-no-plan">Для «{floor}» ще не додано файл плану.</div>}
                 </div>
-                <p className="editor-map-help">Клацни маркер на схемі, щоб прибрати його. Поки що жодна команда на U‑PROX не надсилається.</p>
+                <p className="editor-map-help">Перетягни маркер, щоб перемістити. Видалення — тільки кнопкою × у списку праворуч. Поки що жодна команда на U‑PROX не надсилається.</p>
               </section>
               <aside className="editor-bindings" aria-label="Прив’язані елементи">
                 <div className="editor-bindings-heading"><div><b>3. Прив’язки</b><span>{elements.length} на плані</span></div></div>

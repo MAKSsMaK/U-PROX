@@ -12,19 +12,26 @@ export type PlanElement = {
 
 const storageKey = 'uproxx-plan-elements-v1';
 
-export function readPlanElements(): PlanElement[] {
+function keyForFloor(floor: string) {
+  return `${storageKey}:${floor}`;
+}
+
+export function readPlanElements(floor: string): PlanElement[] {
   try {
-    const value = localStorage.getItem(storageKey);
-    if (!value) return [];
-    const parsed = JSON.parse(value) as unknown;
+    const value = localStorage.getItem(keyForFloor(floor));
+    // Retain existing third-floor draft data after upgrading to per-floor storage.
+    const legacyValue = floor === '3 поверх' ? localStorage.getItem(storageKey) : null;
+    const source = value ?? legacyValue;
+    if (!source) return [];
+    const parsed = JSON.parse(source) as unknown;
     return Array.isArray(parsed) ? (parsed as PlanElement[]) : [];
   } catch {
     return [];
   }
 }
 
-export function writePlanElements(elements: PlanElement[]) {
-  localStorage.setItem(storageKey, JSON.stringify(elements));
+export function writePlanElements(floor: string, elements: PlanElement[]) {
+  localStorage.setItem(keyForFloor(floor), JSON.stringify(elements));
 }
 
 export function planElementIcon(type: PlanElementType) {

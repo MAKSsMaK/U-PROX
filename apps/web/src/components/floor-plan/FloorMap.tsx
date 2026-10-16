@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { doors, useStore } from '../../store';
 import { planElementIcon, readPlanElements } from '../../features/plans/planElements';
-
-const planFloors = ['2 поверх', '3 поверх', '4 поверх'] as const;
+import { floorOptions, getFloorPlan } from '../../features/plans/floorPlans';
 
 export function FloorMap() {
   const floor = useStore((state) => state.floor);
@@ -12,9 +11,9 @@ export function FloorMap() {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [imageUnavailable, setImageUnavailable] = useState(false);
-  const [savedElements] = useState(readPlanElements);
+  const [savedElements, setSavedElements] = useState(() => readPlanElements(floor));
   const dragStart = useRef<{ x: number; y: number; panX: number; panY: number }>();
-  const hasThirdFloorPlan = floor === '3 поверх';
+  const plan = getFloorPlan(floor);
   const changeZoom = (change: number) =>
     setZoom((current) => {
       const next = Math.min(1.5, Math.max(0.65, current + change));
@@ -26,6 +25,7 @@ export function FloorMap() {
     setPan({ x: 0, y: 0 });
     setZoom(1);
     setImageUnavailable(false);
+    setSavedElements(readPlanElements(floor));
   }, [floor]);
 
   const beginPan = (event: PointerEvent<HTMLDivElement>) => {
@@ -55,7 +55,7 @@ export function FloorMap() {
           <span>Адміністративна будівля · етап 1</span>
         </div>
         <div className="plan-levels" aria-label="Вибір поверху">
-          {planFloors.map((level) => (
+          {floorOptions.map((level) => (
             <button
               className={floor === level ? 'active' : ''}
               key={level}
@@ -75,7 +75,7 @@ export function FloorMap() {
         onPointerUp={endPan}
       >
         <div className="plan-grid" />
-        {hasThirdFloorPlan && !imageUnavailable ? (
+        {plan && !imageUnavailable ? (
           <div
             className="plan-frame"
             style={
@@ -83,14 +83,15 @@ export function FloorMap() {
                 '--plan-scale': zoom,
                 '--plan-pan-x': `${pan.x}px`,
                 '--plan-pan-y': `${pan.y}px`,
+                aspectRatio: plan.aspectRatio,
               } as CSSProperties
             }
           >
             <img
-              alt="План третього поверху суду"
+              alt={plan.alt}
               className="court-plan-image"
               onError={() => setImageUnavailable(true)}
-              src="/floor-plans/court-floor-3-blueprint.png"
+              src={plan.imageUrl}
             />
             {(savedElements.length ? savedElements : doors.map(([name, color, x, y]) => ({ id: name, name, type: color === 'blue' ? 'device' as const : 'door' as const, x, y }))).map((element) =>
               element.type === 'label' ? (
@@ -121,7 +122,7 @@ export function FloorMap() {
             <strong>{imageUnavailable ? 'Файл плану не знайдено' : `План «${floor}» ще не додано`}</strong>
             <span>
               {imageUnavailable
-                ? 'Перевір папку public/floor-plans і назву файлу court-floor-3-blueprint.png.'
+                ? 'Перевір папку public/floor-plans і наявність файлу схеми.'
                 : 'Після завантаження схеми тут з’явиться окремий електронний шар.'}
             </span>
           </div>

@@ -6,6 +6,7 @@ import { LiveEventFeed } from '../components/events/LiveEventFeed';
 import { IntegrationTestDialog } from '../components/integration/IntegrationTestDialog';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { useStore } from '../store';
+import { floorOptions } from '../features/plans/floorPlans';
 
 export function LivePlanPage() {
   const building = useStore((state) => state.building);
@@ -29,9 +30,7 @@ export function LivePlanPage() {
               <option>Складський корпус</option>
             </select>
             <select value={floor} onChange={(event) => setFloor(event.target.value)}>
-              <option>1 поверх</option>
-              <option>2 поверх</option>
-              <option>3 поверх</option>
+              {floorOptions.map((option) => <option key={option}>{option}</option>)}
             </select>
             <Link className="plan-editor-link" to="/plan-editor">
               Редагувати план
