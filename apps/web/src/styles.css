@@ -1222,9 +1222,14 @@ pre {
   color: #8ca8c0;
   font-size: 12px;
 }
-.editor-map-element {
+.editor-map-marker {
   position: absolute;
   z-index: 2;
+  transform: translate(-50%, -50%);
+}
+.editor-map-element {
+  position: relative;
+  z-index: 1;
   display: flex;
   width: clamp(22px, 2cqw, 27px);
   height: clamp(22px, 2cqw, 27px);
@@ -1236,13 +1241,13 @@ pre {
   color: #52da98;
   font: 800 10px/1 Manrope;
   text-align: center;
-  transform: translate(-50%, -50%);
   box-shadow: 0 0 0 2px #061523, 0 0 8px currentColor;
   cursor: grab;
   touch-action: none;
   user-select: none;
 }
 .editor-map-element:active { cursor: grabbing; }
+.editor-map-element.is-selected { outline: 2px solid #e4f7ff; outline-offset: 3px; }
 .editor-map-element.device { color: #4da9ff; }
 .editor-map-element.input { color: #f7c354; }
 .editor-map-element.label {
@@ -1261,9 +1266,28 @@ pre {
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
-  transform: translate(-50%, -145%);
+  transform: translateY(-145%);
   box-shadow: 0 0 0 1px #061523;
 }
+.editor-map-remove {
+  position: absolute;
+  z-index: 3;
+  top: -10px;
+  left: calc(100% + 6px);
+  display: grid;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  border: 1px solid #ff7b84;
+  border-radius: 50%;
+  padding: 0;
+  background: #4a1822;
+  color: #ffe8e9;
+  cursor: pointer;
+  font: 800 15px/1 Manrope;
+  box-shadow: 0 0 0 2px #061523;
+}
+.editor-map-remove:hover { background: #762331; }
 .editor-map-help { margin: 0; padding: 0 17px 15px; color: #7793ad; font-size: 10px; line-height: 1.45; }
 .editor-bindings { min-height: 0; max-height: none; overflow: auto; }
 .editor-bindings > p { margin: 0; padding: 16px; color: #8299b3; font-size: 11px; line-height: 1.5; }

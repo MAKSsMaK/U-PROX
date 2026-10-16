@@ -14,7 +14,7 @@ import {
 } from '../features/plans/planElements';
 
 type PaletteItem = { type: PlanElementType; item: PlanCatalogItem };
-type DragState = { id: string; pointerId: number };
+type DragState = { id: string; pointerId: number; startX: number; startY: number; moved: boolean };
 type CatalogType = Exclude<PlanElementType, 'label'>;
 
 const selectorTypes: Array<{ type: CatalogType; label: string }> = [
@@ -35,8 +35,10 @@ export function PlanEditorPage() {
   const [search, setSearch] = useState('');
   const [activeSelector, setActiveSelector] = useState<CatalogType>();
   const [selectorSearch, setSelectorSearch] = useState('');
+  const [selectedElementId, setSelectedElementId] = useState<string>();
   const frameRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<DragState>();
+  const suppressMarkerClick = useRef(false);
   const catalog = catalogQuery.data;
   const catalogItems = useMemo(() => [
     ...(catalog?.doors ?? []).map((item) => ({ type: 'door' as const, item, group: 'Двері' })),
@@ -64,6 +66,7 @@ export function PlanEditorPage() {
     setElements(readPlanElements(floor));
     setIsDirty(false);
     setSelection(undefined);
+    setSelectedElementId(undefined);
   }, [floor]);
 
   const updateElements = (next: PlanElement[]) => {
@@ -115,16 +118,20 @@ export function PlanEditorPage() {
     }]);
     setSelection(undefined);
   };
-  const removeElement = (id: string) => updateElements(elements.filter((element) => element.id !== id));
+  const removeElement = (id: string) => {
+    updateElements(elements.filter((element) => element.id !== id));
+    setSelectedElementId((current) => current === id ? undefined : current);
+  };
   const startDrag = (event: PointerEvent<HTMLButtonElement>, id: string) => {
     event.preventDefault();
     event.stopPropagation();
-    dragState.current = { id, pointerId: event.pointerId };
+    dragState.current = { id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, moved: false };
     frameRef.current?.setPointerCapture(event.pointerId);
   };
   const moveElement = (event: PointerEvent<HTMLDivElement>) => {
     const drag = dragState.current;
     if (!drag || !frameRef.current) return;
+    if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 3) drag.moved = true;
     const bounds = frameRef.current.getBoundingClientRect();
     const x = Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100));
     const y = Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100));
@@ -134,7 +141,16 @@ export function PlanEditorPage() {
   const stopDrag = (event?: PointerEvent<HTMLDivElement>) => {
     const drag = dragState.current;
     if (drag && event?.currentTarget.hasPointerCapture(drag.pointerId)) event.currentTarget.releasePointerCapture(drag.pointerId);
+    if (drag?.moved) suppressMarkerClick.current = true;
     dragState.current = undefined;
+  };
+  const selectMarker = (event: MouseEvent<HTMLButtonElement>, id: string) => {
+    event.stopPropagation();
+    if (suppressMarkerClick.current) {
+      suppressMarkerClick.current = false;
+      return;
+    }
+    setSelectedElementId((current) => current === id ? undefined : id);
   };
 
   return (
@@ -224,21 +240,34 @@ export function PlanEditorPage() {
                   >
                     <img alt={plan.alt} src={plan.imageUrl} />
                     {elements.map((element) => (
-                      <button
-                        className={`editor-map-element ${element.type}`}
-                        key={element.id}
-                        onClick={(event) => event.stopPropagation()}
-                        onPointerDown={(event) => startDrag(event, element.id)}
-                        style={{ left: `${element.x}%`, top: `${element.y}%` }}
-                        title={`Перетягни: ${element.name}`}
-                        type="button"
-                      >
-                        {element.type === 'label' ? element.name : planElementIcon(element.type)}
-                      </button>
+                      <div className="editor-map-marker" key={element.id} style={{ left: `${element.x}%`, top: `${element.y}%` }}>
+                        <button
+                          aria-expanded={selectedElementId === element.id}
+                          className={`editor-map-element ${element.type} ${selectedElementId === element.id ? 'is-selected' : ''}`}
+                          onClick={(event) => selectMarker(event, element.id)}
+                          onPointerDown={(event) => startDrag(event, element.id)}
+                          title={`Клацни для дій · перетягни: ${element.name}`}
+                          type="button"
+                        >
+                          {element.type === 'label' ? element.name : planElementIcon(element.type)}
+                        </button>
+                        {selectedElementId === element.id && (
+                          <button
+                            aria-label={`Прибрати «${element.name}» з плану`}
+                            className="editor-map-remove"
+                            onClick={(event) => { event.stopPropagation(); removeElement(element.id); }}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            title="Прибрати з плану"
+                            type="button"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div> : <div className="editor-no-plan">Для «{floor}» ще не додано файл плану.</div>}
                 </div>
-                <p className="editor-map-help">Перетягни маркер, щоб перемістити. Видалення — тільки кнопкою × у списку праворуч. Поки що жодна команда на U‑PROX не надсилається.</p>
+                <p className="editor-map-help">Клацни маркер — з’явиться × для видалення. Перетягни його, щоб перемістити. Жодна команда на U‑PROX не надсилається.</p>
               </section>
               <aside className="editor-bindings" aria-label="Прив’язані елементи">
                 <div className="editor-bindings-heading"><div><b>Прив’язки</b><span>{elements.length} на плані</span></div></div>
