@@ -265,17 +265,18 @@ select {
 .marker {
   position: absolute;
   z-index: 3;
-  display: grid;
-  width: clamp(15px, 2.2%, 26px);
-  aspect-ratio: 1;
-  height: auto;
-  place-items: center;
+  display: flex;
+  width: clamp(24px, 2cqw, 28px);
+  height: clamp(24px, 2cqw, 28px);
+  align-items: center;
+  justify-content: center;
   border: 2px solid currentColor;
   border-radius: 50%;
   background: #071827;
   color: inherit;
   cursor: pointer;
-  font: 800 clamp(9px, 1.3vw, 16px) / 1 Manrope;
+  font: 800 clamp(12px, 1.1cqw, 14px) / 1 Manrope;
+  text-align: center;
   transform: translate(-50%, -50%);
   box-shadow:
     0 0 0 3px #061523,
@@ -1150,15 +1151,17 @@ pre {
 .editor-map-element {
   position: absolute;
   z-index: 2;
-  display: grid;
-  width: clamp(14px, 2cqw, 20px);
-  aspect-ratio: 1;
-  place-items: center;
+  display: flex;
+  width: clamp(22px, 2cqw, 27px);
+  height: clamp(22px, 2cqw, 27px);
+  align-items: center;
+  justify-content: center;
   border: 1.5px solid currentColor;
   border-radius: 50%;
   background: #071827;
   color: #52da98;
   font: 800 10px/1 Manrope;
+  text-align: center;
   transform: translate(-50%, -50%);
   box-shadow: 0 0 0 2px #061523, 0 0 8px currentColor;
   cursor: grab;
