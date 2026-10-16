@@ -55,6 +55,7 @@ export function PlanEditorPage() {
   const setFloor = useStore((state) => state.setFloor);
   const plan = getFloorPlan(floor);
   const [elements, setElements] = useState<PlanElement[]>(() => readPlanElements(floor));
+  const [isDirty, setIsDirty] = useState(false);
   const [selection, setSelection] = useState<PaletteItem>();
   const [label, setLabel] = useState('');
   const frameRef = useRef<HTMLDivElement>(null);
@@ -68,12 +69,21 @@ export function PlanEditorPage() {
 
   useEffect(() => {
     setElements(readPlanElements(floor));
+    setIsDirty(false);
     setSelection(undefined);
   }, [floor]);
 
-  const saveElements = (next: PlanElement[]) => {
+  const updateElements = (next: PlanElement[]) => {
     setElements(next);
-    writePlanElements(floor, next);
+    setIsDirty(true);
+  };
+  const saveElements = () => {
+    writePlanElements(floor, elements);
+    setIsDirty(false);
+  };
+  const changeFloor = (nextFloor: string) => {
+    if (isDirty) writePlanElements(floor, elements);
+    setFloor(nextFloor);
   };
   const addLabel = () => {
     const normalized = label.trim();
@@ -86,14 +96,14 @@ export function PlanEditorPage() {
     const bounds = frameRef.current.getBoundingClientRect();
     const x = Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100));
     const y = Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100));
-    saveElements([...elements, {
+    updateElements([...elements, {
       id: crypto.randomUUID(), type: selection.type,
       token: selection.type === 'label' ? undefined : selection.item.token,
       name: selection.item.name, detail: selection.item.model ?? selection.item.deviceToken, x, y,
     }]);
     setSelection(undefined);
   };
-  const removeElement = (id: string) => saveElements(elements.filter((element) => element.id !== id));
+  const removeElement = (id: string) => updateElements(elements.filter((element) => element.id !== id));
   const startDrag = (event: PointerEvent<HTMLButtonElement>, id: string) => {
     event.preventDefault();
     event.stopPropagation();
@@ -107,7 +117,7 @@ export function PlanEditorPage() {
     const x = Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100));
     const y = Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100));
     const next = elements.map((element) => (element.id === drag.id ? { ...element, x, y } : element));
-    saveElements(next);
+    updateElements(next);
   };
   const stopDrag = (event?: PointerEvent<HTMLDivElement>) => {
     const drag = dragState.current;
@@ -125,9 +135,12 @@ export function PlanEditorPage() {
             <span>Обери реальний об’єкт U‑PROX, клацни на схемі й перевір його токен. Прив’язки окремі для кожного поверху.</span>
           </div>
           <div className="editor-header-actions">
-            <select aria-label="Поверх для редагування" className="editor-floor-select" onChange={(event) => setFloor(event.target.value)} value={floor}>
+            <select aria-label="Поверх для редагування" className="editor-floor-select" onChange={(event) => changeFloor(event.target.value)} value={floor}>
               {floorOptions.map((option) => <option key={option}>{option}</option>)}
             </select>
+            <button className={`editor-save ${isDirty ? 'is-dirty' : ''}`} disabled={!isDirty} onClick={saveElements} type="button">
+              {isDirty ? 'Зберегти зміни' : 'Збережено'}
+            </button>
             <button className="catalog-refresh" onClick={() => catalogQuery.refetch()} type="button">Оновити з U‑PROX</button>
           </div>
         </header>
@@ -135,7 +148,7 @@ export function PlanEditorPage() {
           <section className="catalog-error">Не вдалося отримати каталог: {catalogQuery.error.message}</section>
         ) : (
           <>
-            <section className="catalog-note"><b>Локальне збереження</b><span>Прив’язки зберігаються у браузері цієї VM. Після перевірки перенесемо їх до спільної БД.</span></section>
+            <section className="catalog-note"><b>Локальне збереження</b><span>Після змін натисни «Зберегти зміни». Прив’язки зберігаються у браузері цієї VM; після перевірки перенесемо їх до спільної БД.</span></section>
             <div className="plan-editor-workspace">
               <aside className="editor-palette" aria-label="Об’єкти для плану">
                 <div className="editor-palette-intro"><b>1. Обери об’єкт</b><span>Потім клацни по плану. Усі створені прив’язки нижче вже збережені.</span></div>

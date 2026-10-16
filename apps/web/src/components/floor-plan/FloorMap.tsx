@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
-import { doors, useStore } from '../../store';
+import { useStore } from '../../store';
 import { planElementIcon, readPlanElements } from '../../features/plans/planElements';
 import { floorOptions, getFloorPlan } from '../../features/plans/floorPlans';
 
@@ -26,6 +26,7 @@ export function FloorMap() {
     setZoom(1);
     setImageUnavailable(false);
     setSavedElements(readPlanElements(floor));
+    select(undefined);
   }, [floor]);
 
   const beginPan = (event: PointerEvent<HTMLDivElement>) => {
@@ -93,7 +94,7 @@ export function FloorMap() {
               onError={() => setImageUnavailable(true)}
               src={plan.imageUrl}
             />
-            {(savedElements.length ? savedElements : doors.map(([name, color, x, y]) => ({ id: name, name, type: color === 'blue' ? 'device' as const : 'door' as const, x, y }))).map((element) =>
+            {savedElements.map((element) =>
               element.type === 'label' ? (
                 <span className="map-plan-label" key={element.id} style={{ left: `${element.x}%`, top: `${element.y}%` }}>
                   {element.name}
@@ -101,21 +102,17 @@ export function FloorMap() {
               ) : (
                 <button
                   aria-label={element.name}
-                  className={`marker ${element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${selected[0] === element.name ? 'selected' : ''}`}
+                  className={`marker ${element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${selected?.id === element.id ? 'selected' : ''}`}
                   key={element.id}
-                  onClick={() => select([element.name, element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green', element.x, element.y])}
+                  onClick={() => select({ id: element.id, name: element.name, type: element.type as 'door' | 'device' | 'input', token: element.token, detail: element.detail, floor })}
                   style={{ left: `${element.x}%`, top: `${element.y}%` }}
-                  title={savedElements.length ? `${element.name}${'token' in element && element.token ? ` · токен ${element.token}` : ''}` : `${element.name} · тестова позиція`}
+                  title={`${element.name}${element.token ? ` · токен ${element.token}` : ''}`}
                   type="button"
                 >
                   {planElementIcon(element.type)}
                 </button>
               ),
             )}
-            {!savedElements.length && <>
-              <span className="sensor-marker" style={{ left: '40%', top: '27%' }} title="Датчик · ще не прив’язано" />
-              <span className="sensor-marker" style={{ left: '62%', top: '58%' }} title="Датчик · ще не прив’язано" />
-            </>}
           </div>
         ) : (
           <div className="plan-empty-state">
@@ -127,7 +124,7 @@ export function FloorMap() {
             </span>
           </div>
         )}
-        <div className="plan-watermark">{savedElements.length ? `Електронний шар · ${savedElements.length} прив’язок` : 'Електронний шар · тестові маркери не прив’язані'}</div>
+        <div className="plan-watermark">{savedElements.length ? `Електронний шар · ${savedElements.length} прив’язок` : 'Електронний шар ще не налаштовано'}</div>
         <div className="plan-zoom" aria-label="Масштаб карти">
           <button
             aria-label="Зменшити масштаб"
