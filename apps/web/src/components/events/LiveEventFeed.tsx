@@ -27,7 +27,7 @@ export function LiveEventFeed() {
   const eventsQuery = useQuery({
     queryKey: ['plan-events', 24, 100],
     queryFn: () => getEvents({ hours: 24, limit: 100 }),
-    refetchInterval: 10_000,
+    refetchInterval: 5_000,
   });
   const controllerToken = selected?.type === 'device'
     ? selected.token
@@ -35,7 +35,7 @@ export function LiveEventFeed() {
   const controllerQuery = useQuery({
     queryKey: ['plan-live-controller', controllerToken],
     queryFn: () => getPlanLiveController(controllerToken!),
-    refetchInterval: 10_000,
+    refetchInterval: 5_000,
     enabled: Boolean(controllerToken),
   });
   const allEvents = toEventTableRows(eventsQuery.data);

@@ -39,6 +39,9 @@ type EmployeeDirectory = { employees: unknown[]; expiresAt: number };
 let employeeDirectory: EmployeeDirectory | undefined;
 type CachedImage = { content: Buffer; contentType: string; expiresAt: number };
 const images = new Map<string, CachedImage>();
+const LIVE_CACHE_MS = 5_000;
+type TimedCache = { value: unknown; expiresAt: number; pending?: Promise<unknown> };
+const liveControllerCache = new Map<string, TimedCache>();
 type UproxxEmployee = {
   Token?: string | number;
   Name?: string;
@@ -205,10 +208,7 @@ function liveSignal(record: UproxxCatalogRecord, isOutput = false): LiveSignal {
   };
 }
 
-app.get('/api/plan/live/:token', async (request, reply) => {
-  const parsed = liveControllerParams.safeParse(request.params);
-  if (!parsed.success) return reply.code(400).send({ error: 'Invalid controller token' });
-  const { token } = parsed.data;
+async function fetchLiveController(token: number) {
   const listBody = {
     Language: 'uk',
     SubscriptionEnabled: true,
@@ -252,6 +252,29 @@ app.get('/api/plan/live/:token', async (request, reply) => {
       warning(outputsResult, 'DeviceOutputGetList'),
     ].filter((message): message is string => Boolean(message)),
   };
+}
+
+async function getLiveController(token: number) {
+  const key = String(token);
+  const cached = liveControllerCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached?.pending) return cached.pending;
+  const pending = fetchLiveController(token);
+  liveControllerCache.set(key, { value: cached?.value, expiresAt: 0, pending });
+  try {
+    const value = await pending;
+    liveControllerCache.set(key, { value, expiresAt: Date.now() + LIVE_CACHE_MS });
+    return value;
+  } catch (error) {
+    liveControllerCache.delete(key);
+    throw error;
+  }
+}
+
+app.get('/api/plan/live/:token', async (request, reply) => {
+  const parsed = liveControllerParams.safeParse(request.params);
+  if (!parsed.success) return reply.code(400).send({ error: 'Invalid controller token' });
+  return getLiveController(parsed.data.token);
 });
 const eventsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -261,6 +284,10 @@ const eventsQuery = z.object({
 function issuedMilliseconds(value: unknown) {
   return Number(typeof value === 'string' ? (value.match(/\d+/)?.[0] ?? 0) : 0);
 }
+
+type EventsSnapshot = Record<string, unknown> & { Event: Array<Record<string, unknown>> };
+let eventsSnapshot: { value: EventsSnapshot; refreshedAt: number } | undefined;
+let eventsRefreshPending: Promise<EventsSnapshot> | undefined;
 
 async function getEmployeeDirectory() {
   if (employeeDirectory && employeeDirectory.expiresAt > Date.now()) {
@@ -287,6 +314,40 @@ async function getEmployeeDirectory() {
     app.log.warn({ error }, 'Unable to load U-PROX employee directory');
     return employeeDirectory?.employees ?? [];
   }
+}
+
+async function refreshEventsSnapshot() {
+  if (eventsRefreshPending) return eventsRefreshPending;
+  eventsRefreshPending = (async () => {
+    // One shared request serves every open admin screen. Negative Limit returns newest first.
+    const response = (await uproxx('EventGetList', {
+      Limit: -200,
+      StartToken: 0,
+    })) as Record<string, unknown> & { Event?: Array<Record<string, unknown>> };
+    const employeesByToken = new Map(
+      ((await getEmployeeDirectory()) as UproxxEmployee[]).flatMap((employee) =>
+        employee.Token === undefined ? [] : [[String(employee.Token), employee] as const],
+      ),
+    );
+    const events = (response.Event ?? []).map((event) => {
+      const user = event.User as { Token?: string | number } | undefined;
+      const employee = user?.Token === undefined ? undefined : employeesByToken.get(String(user.Token));
+      return employee ? { ...event, Employee: employee } : event;
+    });
+    const value = { ...response, Event: events };
+    eventsSnapshot = { value, refreshedAt: Date.now() };
+    return value;
+  })();
+  try {
+    return await eventsRefreshPending;
+  } finally {
+    eventsRefreshPending = undefined;
+  }
+}
+
+async function getEventsSnapshot() {
+  if (eventsSnapshot) return eventsSnapshot.value;
+  return refreshEventsSnapshot();
 }
 
 function imageContentType(content: Buffer) {
@@ -327,29 +388,12 @@ async function getImage(imageToken: string) {
 
 app.get('/api/events', async (request) => {
   const { limit, hours } = eventsQuery.parse(request.query);
-  // The installed U-PROX accepts this minimal documented EventGetList request.
-  // Negative Limit returns newest events first; keep the poll bounded.
-  const response = (await uproxx('EventGetList', {
-    // A negative limit asks U-PROX for the newest events first.
-    Limit: -limit,
-    StartToken: 0,
-  })) as Record<string, unknown> & { Event?: Array<Record<string, unknown>> };
+  const response = await getEventsSnapshot();
   const fromMilliseconds = Date.now() - hours * 60 * 60_000;
   const events = (response.Event ?? [])
     .filter((event) => issuedMilliseconds(event.Issued) >= fromMilliseconds)
     .slice(0, limit);
-  const employeesByToken = new Map(
-    ((await getEmployeeDirectory()) as UproxxEmployee[]).flatMap((employee) =>
-      employee.Token === undefined ? [] : [[String(employee.Token), employee] as const],
-    ),
-  );
-  const enrichedEvents = events.map((event) => {
-    const user = event.User as { Token?: string | number } | undefined;
-    const employee =
-      user?.Token === undefined ? undefined : employeesByToken.get(String(user.Token));
-    return employee ? { ...event, Employee: employee } : event;
-  });
-  return { ...response, Event: enrichedEvents };
+  return { ...response, Event: events, refreshedAt: eventsSnapshot?.refreshedAt ?? Date.now() };
 });
 
 app.get('/api/images/:token', async (request, reply) => {
@@ -436,4 +480,16 @@ app.setErrorHandler((err, _req, reply) => {
   app.log.error({ err }, 'request failed');
   reply.code(502).send({ error: 'U-PROX integration request failed' });
 });
+
+void refreshEventsSnapshot().catch((error) => {
+  app.log.warn({ error }, 'Initial U-PROX event refresh failed');
+});
+
+const eventsRefreshTimer = setInterval(() => {
+  void refreshEventsSnapshot().catch((error) => {
+    app.log.warn({ error }, 'Scheduled U-PROX event refresh failed');
+  });
+}, LIVE_CACHE_MS);
+eventsRefreshTimer.unref();
+
 await app.listen({ port: env.PORT, host: '0.0.0.0' });

@@ -38,7 +38,7 @@ export function FloorMap() {
   const eventsQuery = useQuery({
     queryKey: ['plan-events', 24, 100],
     queryFn: () => getEvents({ hours: 24, limit: 100 }),
-    refetchInterval: 10_000,
+    refetchInterval: 5_000,
   });
   const events = toEventTableRows(eventsQuery.data);
   const visibleElements = savedElements.filter((element) => {
@@ -131,7 +131,7 @@ export function FloorMap() {
             {visibleElements.map((element) => {
               const lastEvent = element.type === 'label' ? undefined : lastEventForElement(element, events);
               const lastState = lastEvent ? eventState(lastEvent.eventName) : undefined;
-              const hasFreshEvent = Boolean(lastEvent && Date.now() - lastEvent.occurredAtMs < 90_000);
+              const hasFreshEvent = Boolean(lastEvent && Date.now() - lastEvent.occurredAtMs < 3_000);
               return element.type === 'label' ? (
                 <span className="map-plan-label" key={element.id} style={{ left: `${element.x}%`, top: `${element.y}%` }}>
                   {element.name}
