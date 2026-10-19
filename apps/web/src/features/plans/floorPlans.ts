@@ -9,16 +9,40 @@ export const floorOptions = ['Підвал', '1 поверх', '2 поверх',
 
 const plans: FloorPlanDefinition[] = [
   {
+    floor: '1 поверх',
+    imageUrl: '/floor-plans/court-floor-1-blueprint.png',
+    alt: 'План першого поверху суду',
+    aspectRatio: '1448 / 1086',
+  },
+  {
     floor: '2 поверх',
     imageUrl: '/floor-plans/court-floor-2-blueprint.png',
     alt: 'План другого поверху суду',
-    aspectRatio: '1774 / 887',
+    aspectRatio: '1448 / 1086',
   },
   {
     floor: '3 поверх',
     imageUrl: '/floor-plans/court-floor-3-blueprint.png',
     alt: 'План третього поверху суду',
-    aspectRatio: '1774 / 767',
+    aspectRatio: '1448 / 1086',
+  },
+  {
+    floor: '4 поверх',
+    imageUrl: '/floor-plans/court-floor-4-blueprint.png',
+    alt: 'План четвертого поверху суду',
+    aspectRatio: '1448 / 1086',
+  },
+  {
+    floor: '5 поверх',
+    imageUrl: '/floor-plans/court-floor-5-blueprint.png',
+    alt: 'План п’ятого поверху суду',
+    aspectRatio: '1448 / 1086',
+  },
+  {
+    floor: '6 поверх',
+    imageUrl: '/floor-plans/court-floor-6-blueprint.png',
+    alt: 'План шостого поверху суду',
+    aspectRatio: '1448 / 1086',
   },
 ];
 
