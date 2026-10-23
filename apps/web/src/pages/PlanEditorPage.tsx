@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { getPlanCatalog, type PlanCatalogItem } from '../api';
@@ -15,6 +15,7 @@ import {
 
 type PaletteItem = { type: PlanElementType; item: PlanCatalogItem };
 type DragState = { id: string; pointerId: number; startX: number; startY: number; moved: boolean };
+type PanState = { pointerId: number; startX: number; startY: number; panX: number; panY: number };
 type CatalogType = Exclude<PlanElementType, 'label'>;
 
 const selectorTypes: Array<{ type: CatalogType; label: string }> = [
@@ -36,8 +37,11 @@ export function PlanEditorPage() {
   const [activeSelector, setActiveSelector] = useState<CatalogType>();
   const [selectorSearch, setSelectorSearch] = useState('');
   const [selectedElementId, setSelectedElementId] = useState<string>();
+  const [editorZoom, setEditorZoom] = useState(1.35);
+  const [editorPan, setEditorPan] = useState({ x: 0, y: 0 });
   const frameRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<DragState>();
+  const panState = useRef<PanState>();
   const suppressMarkerClick = useRef(false);
   const catalog = catalogQuery.data;
   const catalogItems = useMemo(() => [
@@ -67,6 +71,7 @@ export function PlanEditorPage() {
     setIsDirty(false);
     setSelection(undefined);
     setSelectedElementId(undefined);
+    setEditorPan({ x: 0, y: 0 });
   }, [floor]);
 
   const updateElements = (next: PlanElement[]) => {
@@ -141,7 +146,10 @@ export function PlanEditorPage() {
   const stopDrag = (event?: PointerEvent<HTMLDivElement>) => {
     const drag = dragState.current;
     if (drag && event?.currentTarget.hasPointerCapture(drag.pointerId)) event.currentTarget.releasePointerCapture(drag.pointerId);
-    if (drag?.moved) suppressMarkerClick.current = true;
+    if (drag) {
+      suppressMarkerClick.current = true;
+      if (!drag.moved) setSelectedElementId((current) => current === drag.id ? undefined : drag.id);
+    }
     dragState.current = undefined;
   };
   const selectMarker = (event: MouseEvent<HTMLButtonElement>, id: string) => {
@@ -151,6 +159,36 @@ export function PlanEditorPage() {
       return;
     }
     setSelectedElementId((current) => current === id ? undefined : id);
+  };
+  const beginPan = (event: PointerEvent<HTMLDivElement>) => {
+    if (editorZoom <= 1 || selection || (event.target !== event.currentTarget && !(event.target instanceof HTMLImageElement))) return;
+    panState.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, panX: editorPan.x, panY: editorPan.y };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveMap = (event: PointerEvent<HTMLDivElement>) => {
+    const pan = panState.current;
+    if (pan) {
+      const limit = Math.round((editorZoom - 1) * 320);
+      setEditorPan({
+        x: Math.max(-limit, Math.min(limit, pan.panX + event.clientX - pan.startX)),
+        y: Math.max(-limit, Math.min(limit, pan.panY + event.clientY - pan.startY)),
+      });
+      return;
+    }
+    moveElement(event);
+  };
+  const endMapPointer = (event: PointerEvent<HTMLDivElement>) => {
+    const pan = panState.current;
+    if (pan && event.currentTarget.hasPointerCapture(pan.pointerId)) event.currentTarget.releasePointerCapture(pan.pointerId);
+    panState.current = undefined;
+    stopDrag(event);
+  };
+  const changeEditorZoom = (change: number) => {
+    setEditorZoom((current) => {
+      const next = Math.max(1, Math.min(1.7, Number((current + change).toFixed(2))));
+      if (next === 1) setEditorPan({ x: 0, y: 0 });
+      return next;
+    });
   };
 
   return (
@@ -228,15 +266,21 @@ export function PlanEditorPage() {
             <div className="plan-editor-workspace">
               <section className="editor-map-panel">
                 <div className={`editor-placement-hint ${selection ? 'is-ready' : ''}`}><b>Розміщення на плані</b><span>{selectedDescription}</span></div>
-                <div className="editor-map-viewport">
+                <div className={`editor-map-viewport ${editorZoom > 1 ? 'is-pannable' : ''}`}>
                   {plan ? <div
                     className={`editor-map-frame ${selection ? 'is-placing' : ''}`}
                     onClick={placeElement}
-                    onPointerCancel={stopDrag}
-                    onPointerMove={moveElement}
-                    onPointerUp={stopDrag}
+                    onPointerCancel={endMapPointer}
+                    onPointerDown={beginPan}
+                    onPointerMove={moveMap}
+                    onPointerUp={endMapPointer}
                     ref={frameRef}
-                    style={{ aspectRatio: plan.aspectRatio }}
+                    style={{
+                      aspectRatio: plan.aspectRatio,
+                      '--editor-scale': editorZoom,
+                      '--editor-pan-x': `${editorPan.x}px`,
+                      '--editor-pan-y': `${editorPan.y}px`,
+                    } as CSSProperties}
                   >
                     <img alt={plan.alt} src={plan.imageUrl} />
                     {elements.map((element) => (
@@ -266,8 +310,13 @@ export function PlanEditorPage() {
                       </div>
                     ))}
                   </div> : <div className="editor-no-plan">Для «{floor}» ще не додано файл плану.</div>}
+                  {plan && <div className="editor-map-zoom" aria-label="Масштаб редактора">
+                    <button aria-label="Зменшити масштаб" disabled={editorZoom <= 1} onClick={() => changeEditorZoom(-0.15)} type="button">−</button>
+                    <span>{Math.round(editorZoom * 100)}%</span>
+                    <button aria-label="Збільшити масштаб" disabled={editorZoom >= 1.7} onClick={() => changeEditorZoom(0.15)} type="button">+</button>
+                  </div>}
                 </div>
-                <p className="editor-map-help">Клацни маркер — з’явиться × для видалення. Перетягни його, щоб перемістити. Жодна команда на U‑PROX не надсилається.</p>
+                <p className="editor-map-help">Клацни маркер — з’явиться × для видалення. Перетягни його, щоб перемістити. Порожнє місце карти перетягує збільшену схему.</p>
               </section>
               <aside className="editor-bindings" aria-label="Прив’язані елементи">
                 <div className="editor-bindings-heading"><div><b>Прив’язки</b><span>{elements.length} на плані</span></div></div>

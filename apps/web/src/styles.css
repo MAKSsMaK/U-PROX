@@ -1196,7 +1196,9 @@ pre {
 .editor-placement-hint.is-ready { background: #0e2e2d; }
 .editor-placement-hint.is-ready b { color: #63dec1; }
 .editor-placement-hint.is-ready span { color: #a8dcd2; }
-.editor-map-viewport { display: flex; min-height: 0; flex: 1 1 auto; align-items: center; justify-content: center; overflow: hidden; padding: clamp(10px, 1.8vw, 24px); background: #06121e; }
+.editor-map-viewport { position: relative; display: flex; min-height: 0; flex: 1 1 auto; align-items: center; justify-content: center; overflow: hidden; padding: clamp(10px, 1.8vw, 24px); background: #06121e; }
+.editor-map-viewport.is-pannable { cursor: grab; }
+.editor-map-viewport.is-pannable:active { cursor: grabbing; }
 .editor-map-frame {
   position: relative;
   container-type: inline-size;
@@ -1206,6 +1208,8 @@ pre {
   max-height: 100%;
   margin: 0;
   aspect-ratio: 1774 / 887;
+  transform: translate(var(--editor-pan-x, 0), var(--editor-pan-y, 0)) scale(var(--editor-scale, 1));
+  transform-origin: center;
   overflow: hidden;
   border: 1px solid #1d5878;
   border-radius: 6px;
@@ -1289,6 +1293,24 @@ pre {
   box-shadow: 0 0 0 2px #061523;
 }
 .editor-map-remove:hover { background: #762331; }
+.editor-map-zoom {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  z-index: 5;
+  display: flex;
+  overflow: hidden;
+  border: 1px solid #295372;
+  border-radius: 5px;
+  background: #071827e8;
+  box-shadow: 0 4px 16px #02091499;
+}
+.editor-map-zoom button,
+.editor-map-zoom span { display: grid; width: 30px; height: 29px; place-items: center; border: 0; border-right: 1px solid #295372; background: transparent; color: #cceaff; font: 800 13px/1 Manrope; }
+.editor-map-zoom span { width: 46px; color: #92c6e5; font-size: 10px; }
+.editor-map-zoom button:last-child { border-right: 0; }
+.editor-map-zoom button:not(:disabled):hover { background: #123b58; cursor: pointer; }
+.editor-map-zoom button:disabled { color: #4e6374; }
 .editor-map-help { margin: 0; padding: 0 17px 15px; color: #7793ad; font-size: 10px; line-height: 1.45; }
 .editor-bindings { min-height: 0; max-height: none; overflow: auto; }
 .editor-bindings > p { margin: 0; padding: 16px; color: #8299b3; font-size: 11px; line-height: 1.5; }
