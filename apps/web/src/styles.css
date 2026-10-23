@@ -241,7 +241,8 @@ select {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: min(95%, 1180px);
+  container-type: inline-size;
+  width: min(calc(100% - 20px), 1280px);
   aspect-ratio: 1774 / 887;
   transform: translate(-50%, -50%) translate(var(--plan-pan-x, 0), var(--plan-pan-y, 0)) scale(var(--plan-scale, 1));
   transform-origin: center;
@@ -411,14 +412,17 @@ select {
 .map-plan-label {
   position: absolute;
   z-index: 3;
+  max-width: clamp(42px, 9cqw, 74px);
+  overflow: hidden;
   border: 1px solid #80caff;
   border-radius: 3px;
-  padding: 3px 6px;
+  padding: clamp(1px, .28cqw, 3px) clamp(3px, .55cqw, 5px);
   background: #061726e6;
   color: #d8f1ff;
-  font-size: clamp(8px, 1vw, 12px);
+  font-size: clamp(7px, 1cqw, 10px);
   font-weight: 700;
-  transform: translate(-50%, -50%);
+  text-overflow: ellipsis;
+  transform: translate(-50%, -195%);
   white-space: nowrap;
 }
 .plan-watermark {
@@ -1196,7 +1200,7 @@ pre {
 .editor-placement-hint.is-ready { background: #0e2e2d; }
 .editor-placement-hint.is-ready b { color: #63dec1; }
 .editor-placement-hint.is-ready span { color: #a8dcd2; }
-.editor-map-viewport { position: relative; display: flex; min-height: 0; flex: 1 1 auto; align-items: center; justify-content: center; overflow: hidden; padding: clamp(10px, 1.8vw, 24px); background: #06121e; }
+.editor-map-viewport { position: relative; display: flex; min-height: 0; flex: 1 1 auto; align-items: center; justify-content: center; overflow: hidden; padding: 6px 8px; background: #06121e; }
 .editor-map-viewport.is-pannable { cursor: grab; }
 .editor-map-viewport.is-pannable:active { cursor: grabbing; }
 .editor-map-frame {
