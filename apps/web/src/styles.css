@@ -1045,6 +1045,14 @@ pre {
 .data-table td:nth-child(6) {
   width: 160px;
 }
+.data-table th:nth-child(7),
+.data-table td:nth-child(7) {
+  width: 110px;
+}
+.data-table th:nth-child(8),
+.data-table td:nth-child(8) {
+  width: 150px;
+}
 .event-photo-cell {
   text-align: center;
 }
@@ -1072,6 +1080,14 @@ pre {
 .event-name {
   color: #6eaaff;
   font-weight: 700;
+}
+@media (max-width: 1450px) {
+  /* Keep the event log readable at 100% browser zoom: job title is the
+     least time-critical column and remains available on wider displays. */
+  .data-table th:nth-child(8),
+  .data-table td:nth-child(8) {
+    display: none;
+  }
 }
 .data-table-empty,
 .events-error {

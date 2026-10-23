@@ -18,6 +18,16 @@ type DragState = { id: string; pointerId: number; startX: number; startY: number
 type PanState = { pointerId: number; startX: number; startY: number; panX: number; panY: number };
 type CatalogType = Exclude<PlanElementType, 'label'>;
 
+// `crypto.randomUUID()` is unavailable in some browsers when the application
+// is opened via an ordinary HTTP LAN address (unlike localhost).  The editor
+// still needs a client-side ID before the draft is saved to local storage.
+function createPlanElementId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `plan-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 const selectorTypes: Array<{ type: CatalogType; label: string }> = [
   { type: 'door', label: 'Двері' },
   { type: 'device', label: 'Контролери' },
@@ -113,7 +123,7 @@ export function PlanEditorPage() {
     const x = Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100));
     const y = Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100));
     updateElements([...elements, {
-      id: crypto.randomUUID(), type: selection.type,
+      id: createPlanElementId(), type: selection.type,
       token: selection.type === 'label' ? undefined : selection.item.token,
       name: selection.item.name,
       detail: selection.type === 'input' ? selection.item.deviceToken : selection.item.model ?? selection.item.deviceToken,
