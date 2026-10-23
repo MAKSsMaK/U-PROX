@@ -37,7 +37,7 @@ export function PlanEditorPage() {
   const [activeSelector, setActiveSelector] = useState<CatalogType>();
   const [selectorSearch, setSelectorSearch] = useState('');
   const [selectedElementId, setSelectedElementId] = useState<string>();
-  const [editorZoom, setEditorZoom] = useState(1.35);
+  const [editorZoom, setEditorZoom] = useState(1);
   const [editorPan, setEditorPan] = useState({ x: 0, y: 0 });
   const frameRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<DragState>();
@@ -161,14 +161,14 @@ export function PlanEditorPage() {
     setSelectedElementId((current) => current === id ? undefined : id);
   };
   const beginPan = (event: PointerEvent<HTMLDivElement>) => {
-    if (editorZoom <= 1 || selection || (event.target !== event.currentTarget && !(event.target instanceof HTMLImageElement))) return;
+    if (selection || (event.target !== event.currentTarget && !(event.target instanceof HTMLImageElement))) return;
     panState.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, panX: editorPan.x, panY: editorPan.y };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const moveMap = (event: PointerEvent<HTMLDivElement>) => {
     const pan = panState.current;
     if (pan) {
-      const limit = Math.round((editorZoom - 1) * 320);
+      const limit = Math.round(Math.max(120, (editorZoom - 1) * 320));
       setEditorPan({
         x: Math.max(-limit, Math.min(limit, pan.panX + event.clientX - pan.startX)),
         y: Math.max(-limit, Math.min(limit, pan.panY + event.clientY - pan.startY)),
@@ -185,7 +185,7 @@ export function PlanEditorPage() {
   };
   const changeEditorZoom = (change: number) => {
     setEditorZoom((current) => {
-      const next = Math.max(1, Math.min(1.7, Number((current + change).toFixed(2))));
+      const next = Math.max(1, Math.min(2, Number((current + change).toFixed(2))));
       if (next === 1) setEditorPan({ x: 0, y: 0 });
       return next;
     });
@@ -266,7 +266,7 @@ export function PlanEditorPage() {
             <div className="plan-editor-workspace">
               <section className="editor-map-panel">
                 <div className={`editor-placement-hint ${selection ? 'is-ready' : ''}`}><b>Розміщення на плані</b><span>{selectedDescription}</span></div>
-                <div className={`editor-map-viewport ${editorZoom > 1 ? 'is-pannable' : ''}`}>
+                <div className="editor-map-viewport is-pannable">
                   {plan ? <div
                     className={`editor-map-frame ${selection ? 'is-placing' : ''}`}
                     onClick={placeElement}
@@ -313,7 +313,7 @@ export function PlanEditorPage() {
                   {plan && <div className="editor-map-zoom" aria-label="Масштаб редактора">
                     <button aria-label="Зменшити масштаб" disabled={editorZoom <= 1} onClick={() => changeEditorZoom(-0.15)} type="button">−</button>
                     <span>{Math.round(editorZoom * 100)}%</span>
-                    <button aria-label="Збільшити масштаб" disabled={editorZoom >= 1.7} onClick={() => changeEditorZoom(0.15)} type="button">+</button>
+                    <button aria-label="Збільшити масштаб" disabled={editorZoom >= 2} onClick={() => changeEditorZoom(0.15)} type="button">+</button>
                   </div>}
                 </div>
                 <p className="editor-map-help">Клацни маркер — з’явиться × для видалення. Перетягни його, щоб перемістити. Порожнє місце карти перетягує збільшену схему.</p>
