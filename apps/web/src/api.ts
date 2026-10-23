@@ -1,3 +1,5 @@
+import type { PlanElement } from './features/plans/planElements';
+
 export async function runIntegrationTest() {
   const r = await fetch('/api/integration/test');
   if (!r.ok) throw new Error(`Backend returned HTTP ${r.status}`);
@@ -60,6 +62,24 @@ export async function getHealth(): Promise<HealthResponse> {
 
 export async function getPlanCatalog(): Promise<PlanCatalog> {
   const response = await fetch('/api/plan/catalog');
+  if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
+  return response.json();
+}
+
+type PlanElementsResponse = { floor: string; elements: PlanElement[] };
+
+export async function getPlanElements(floor: string): Promise<PlanElementsResponse> {
+  const response = await fetch(`/api/plan/elements/${encodeURIComponent(floor)}`);
+  if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
+  return response.json();
+}
+
+export async function savePlanElements(floor: string, elements: PlanElement[]): Promise<PlanElementsResponse> {
+  const response = await fetch(`/api/plan/elements/${encodeURIComponent(floor)}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ elements }),
+  });
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
   return response.json();
 }

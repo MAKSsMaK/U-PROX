@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import { createHash } from 'node:crypto';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
@@ -18,6 +19,7 @@ const env = z
     UPROX_PASSWORD: z.string().optional(),
     UPROX_EMPLOYEE_DIRECTORY_LIMIT: z.coerce.number().int().min(1).max(10_000).default(2_000),
     CONTROL_RATE_LIMIT_PER_MINUTE: z.coerce.number().default(12),
+    PLAN_STORAGE_FILE: z.string().optional(),
   })
   .superRefine((value, context) => {
     if (
@@ -32,6 +34,9 @@ const env = z
   .parse(process.env);
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' } });
 app.log.info({ mode: env.MOCK_UPROX, envFile }, 'U-PROX integration configuration loaded');
+const planStorageFile = env.PLAN_STORAGE_FILE
+  ? resolve(env.PLAN_STORAGE_FILE)
+  : resolve(moduleDirectory, '../data/plan-elements.json');
 await app.register(rateLimit, { global: false });
 type Session = { sid: string; expiresAt: number };
 let session: Session | undefined;
@@ -110,6 +115,69 @@ app.get('/api/health', async () => ({
   mode: env.MOCK_UPROX === 'true' ? 'mock' : 'uproxx',
   uproxxBase: env.MOCK_UPROX === 'true' ? null : env.UPROX_BASE_URL,
 }));
+
+const planElementSchema = z.object({
+  id: z.string().min(1).max(128),
+  type: z.enum(['door', 'device', 'input', 'label']),
+  token: z.string().max(128).optional(),
+  name: z.string().min(1).max(300),
+  detail: z.string().max(300).nullable().optional(),
+  deviceToken: z.string().max(128).nullable().optional(),
+  x: z.number().finite().min(0).max(100),
+  y: z.number().finite().min(0).max(100),
+});
+const planFloorParams = z.object({ floor: z.string().trim().min(1).max(80) });
+const planElementsBody = z.object({ elements: z.array(planElementSchema).max(2_000) });
+type SharedPlanElement = z.infer<typeof planElementSchema>;
+type SharedPlanElements = Record<string, SharedPlanElement[]>;
+let sharedPlanElements: SharedPlanElements = {};
+let loadSharedPlanElements: Promise<void> | undefined;
+let sharedPlanWrite = Promise.resolve();
+
+async function ensureSharedPlanElementsLoaded() {
+  if (!loadSharedPlanElements) {
+    loadSharedPlanElements = (async () => {
+      try {
+        const source = await readFile(planStorageFile, 'utf8');
+        const parsed = z.record(z.string(), z.array(planElementSchema)).safeParse(JSON.parse(source));
+        if (!parsed.success) {
+          app.log.warn({ planStorageFile }, 'Plan storage has an invalid format; starting with an empty plan');
+          return;
+        }
+        sharedPlanElements = parsed.data;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    })();
+  }
+  await loadSharedPlanElements;
+}
+
+async function persistSharedPlanElements() {
+  const directory = dirname(planStorageFile);
+  sharedPlanWrite = sharedPlanWrite.catch(() => undefined).then(async () => {
+    await mkdir(directory, { recursive: true });
+    const temporaryFile = `${planStorageFile}.tmp`;
+    await writeFile(temporaryFile, JSON.stringify(sharedPlanElements, null, 2), 'utf8');
+    await rename(temporaryFile, planStorageFile);
+  });
+  await sharedPlanWrite;
+}
+
+app.get('/api/plan/elements/:floor', async (request) => {
+  const { floor } = planFloorParams.parse(request.params);
+  await ensureSharedPlanElementsLoaded();
+  return { floor, elements: sharedPlanElements[floor] ?? [] };
+});
+
+app.put('/api/plan/elements/:floor', async (request) => {
+  const { floor } = planFloorParams.parse(request.params);
+  const { elements } = planElementsBody.parse(request.body);
+  await ensureSharedPlanElementsLoaded();
+  sharedPlanElements[floor] = elements;
+  await persistSharedPlanElements();
+  return { floor, elements };
+});
 
 type UproxxCatalogRecord = Record<string, unknown>;
 type PlanCatalogItem = {

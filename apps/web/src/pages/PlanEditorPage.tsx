@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { getPlanCatalog, type PlanCatalogItem } from '../api';
+import { getPlanCatalog, getPlanElements, savePlanElements, type PlanCatalogItem } from '../api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { useStore } from '../store';
 import { floorOptions, getFloorPlan } from '../features/plans/floorPlans';
@@ -36,11 +36,17 @@ const selectorTypes: Array<{ type: CatalogType; label: string }> = [
 
 export function PlanEditorPage() {
   const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: getPlanCatalog });
+  const queryClient = useQueryClient();
   const floor = useStore((state) => state.floor);
   const setFloor = useStore((state) => state.setFloor);
   const plan = getFloorPlan(floor);
-  const [elements, setElements] = useState<PlanElement[]>(() => readPlanElements(floor));
+  const planElementsQuery = useQuery({
+    queryKey: ['plan-elements', floor],
+    queryFn: () => getPlanElements(floor),
+  });
+  const [elements, setElements] = useState<PlanElement[]>([]);
   const [isDirty, setIsDirty] = useState(false);
+  const [saveError, setSaveError] = useState<string>();
   const [selection, setSelection] = useState<PaletteItem>();
   const [label, setLabel] = useState('');
   const [search, setSearch] = useState('');
@@ -53,6 +59,7 @@ export function PlanEditorPage() {
   const dragState = useRef<DragState>();
   const panState = useRef<PanState>();
   const suppressMarkerClick = useRef(false);
+  const localMigrationStarted = useRef(new Set<string>());
   const catalog = catalogQuery.data;
   const catalogItems = useMemo(() => [
     ...(catalog?.doors ?? []).map((item) => ({ type: 'door' as const, item, group: 'Двері' })),
@@ -77,23 +84,48 @@ export function PlanEditorPage() {
   }, [selection]);
 
   useEffect(() => {
-    setElements(readPlanElements(floor));
+    if (!planElementsQuery.isSuccess) return;
+    const remoteElements = planElementsQuery.data.elements;
+    const localElements = readPlanElements(floor);
+
+    // Existing browser-only maps are imported once on the first editor visit.
+    // Subsequent edits are always written to the shared server storage.
+    if (!remoteElements.length && localElements.length && !localMigrationStarted.current.has(floor)) {
+      localMigrationStarted.current.add(floor);
+      setElements(localElements);
+      void savePlanElements(floor, localElements)
+        .then((saved) => {
+          writePlanElements(floor, saved.elements);
+          queryClient.setQueryData(['plan-elements', floor], saved);
+        })
+        .catch(() => setSaveError('Не вдалося перенести локальні прив’язки на сервер. Натисни «Зберегти зміни» ще раз.'));
+    } else {
+      setElements(remoteElements);
+    }
     setIsDirty(false);
+    setSaveError(undefined);
     setSelection(undefined);
     setSelectedElementId(undefined);
     setEditorPan({ x: 0, y: 0 });
-  }, [floor]);
+  }, [floor, planElementsQuery.data, planElementsQuery.isSuccess, queryClient]);
 
   const updateElements = (next: PlanElement[]) => {
     setElements(next);
     setIsDirty(true);
   };
-  const saveElements = () => {
-    writePlanElements(floor, elements);
-    setIsDirty(false);
+  const saveElements = async () => {
+    try {
+      setSaveError(undefined);
+      const saved = await savePlanElements(floor, elements);
+      writePlanElements(floor, saved.elements);
+      queryClient.setQueryData(['plan-elements', floor], saved);
+      setIsDirty(false);
+    } catch {
+      setSaveError('Не вдалося зберегти прив’язки на сервері. Перевір з’єднання та спробуй ще раз.');
+    }
   };
   const changeFloor = (nextFloor: string) => {
-    if (isDirty) writePlanElements(floor, elements);
+    if (isDirty) void saveElements();
     setFloor(nextFloor);
   };
   const addLabel = () => {
@@ -218,7 +250,7 @@ export function PlanEditorPage() {
               </select>
               <i aria-hidden="true" />
             </div>
-            <button className={`editor-save ${isDirty ? 'is-dirty' : ''}`} disabled={!isDirty} onClick={saveElements} type="button">
+            <button className={`editor-save ${isDirty ? 'is-dirty' : ''}`} disabled={!isDirty} onClick={() => void saveElements()} type="button">
               {isDirty ? 'Зберегти зміни' : 'Збережено'}
             </button>
             <button className="catalog-refresh" onClick={() => catalogQuery.refetch()} type="button">Оновити з U‑PROX</button>
@@ -228,6 +260,7 @@ export function PlanEditorPage() {
           <section className="catalog-error">Не вдалося отримати каталог: {catalogQuery.error.message}</section>
         ) : (
           <>
+            {saveError && <section className="catalog-error">{saveError}</section>}
             <section className="editor-object-bar" aria-label="Додати об’єкт на план">
               <div className="editor-object-search">
                 <label htmlFor="object-search">Загальний пошук U‑PROX</label>

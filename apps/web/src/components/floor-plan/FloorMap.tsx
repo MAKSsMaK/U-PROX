@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getEvents } from '../../api';
+import { getEvents, getPlanElements } from '../../api';
 import { useStore } from '../../store';
-import { planElementIcon, readPlanElements } from '../../features/plans/planElements';
+import { planElementIcon } from '../../features/plans/planElements';
 import { getFloorPlan } from '../../features/plans/floorPlans';
 import { eventMatchesObject, toEventTableRows, type EventTableRow } from '../../features/events/eventTable';
 
@@ -31,7 +31,6 @@ export function FloorMap() {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [imageUnavailable, setImageUnavailable] = useState(false);
-  const [savedElements, setSavedElements] = useState(() => readPlanElements(floor));
   const [visibleTypes, setVisibleTypes] = useState({ door: true, device: true, input: true });
   const [showNames, setShowNames] = useState(false);
   const [showTextLabels, setShowTextLabels] = useState(true);
@@ -41,6 +40,12 @@ export function FloorMap() {
     queryFn: () => getEvents({ hours: 24, limit: 100 }),
     refetchInterval: 5_000,
   });
+  const planElementsQuery = useQuery({
+    queryKey: ['plan-elements', floor],
+    queryFn: () => getPlanElements(floor),
+    refetchInterval: 5_000,
+  });
+  const savedElements = planElementsQuery.data?.elements ?? [];
   const events = toEventTableRows(eventsQuery.data);
   const visibleElements = savedElements.filter((element) => {
     if (element.type === 'label') return showTextLabels;
@@ -61,7 +66,6 @@ export function FloorMap() {
     setPan({ x: 0, y: 0 });
     setZoom(1);
     setImageUnavailable(false);
-    setSavedElements(readPlanElements(floor));
     observedEventIds.current.clear();
     eventsWereObserved.current = false;
     setPulseUntil({});
