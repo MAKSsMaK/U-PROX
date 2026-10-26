@@ -430,11 +430,11 @@ select {
   white-space: nowrap;
 }
 .map-plan-label.is-scrolling > span {
-  animation: plan-label-scroll 5s linear infinite;
+  animation: plan-label-scroll 7s linear infinite;
 }
 @keyframes plan-label-scroll {
-  0%, 18% { transform: translateX(0); }
-  82%, 100% { transform: translateX(var(--label-scroll-distance)); }
+  0% { transform: translateX(var(--label-scroll-start)); }
+  100% { transform: translateX(var(--label-scroll-end)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .map-plan-label.is-scrolling > span { animation: none; }

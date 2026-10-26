@@ -11,14 +11,14 @@ type MapEventState = 'opened' | 'closed' | 'alert' | 'activity';
 function ScrollingPlanLabel({ element }: { element: PlanElement }) {
   const labelRef = useRef<HTMLSpanElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
-  const [scrollDistance, setScrollDistance] = useState(0);
+  const [scrollMetrics, setScrollMetrics] = useState({ labelWidth: 0, textWidth: 0 });
 
   useLayoutEffect(() => {
     const updateDistance = () => {
       const label = labelRef.current;
       const text = textRef.current;
       if (!label || !text) return;
-      setScrollDistance(Math.max(0, Math.ceil(text.scrollWidth - label.clientWidth)));
+      setScrollMetrics({ labelWidth: Math.ceil(label.clientWidth), textWidth: Math.ceil(text.scrollWidth) });
     };
     updateDistance();
     const observer = new ResizeObserver(updateDistance);
@@ -28,9 +28,14 @@ function ScrollingPlanLabel({ element }: { element: PlanElement }) {
 
   return (
     <span
-      className={`map-plan-label ${scrollDistance ? 'is-scrolling' : ''}`}
+      className={`map-plan-label ${scrollMetrics.textWidth > scrollMetrics.labelWidth ? 'is-scrolling' : ''}`}
       ref={labelRef}
-      style={{ left: `${element.x}%`, top: `${element.y}%`, '--label-scroll-distance': `-${scrollDistance}px` } as CSSProperties}
+      style={{
+        left: `${element.x}%`,
+        top: `${element.y}%`,
+        '--label-scroll-start': `${scrollMetrics.labelWidth}px`,
+        '--label-scroll-end': `-${scrollMetrics.textWidth}px`,
+      } as CSSProperties}
       title={element.name}
     >
       <span ref={textRef}>{element.name}</span>
