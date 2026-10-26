@@ -60,6 +60,7 @@ export type PersonnelRecord = {
   department: string;
   position: string;
   identifier: string;
+  photoToken?: string;
   active: boolean;
   local: boolean;
 };

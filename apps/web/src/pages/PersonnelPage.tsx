@@ -9,6 +9,7 @@ import {
   type PersonnelRecord,
 } from '../api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
+import { EventAvatar } from '../components/events/EventAvatar';
 
 const blankForm: PersonnelInput = {
   name: '', department: '', position: '', identifier: '', active: true,
@@ -20,10 +21,11 @@ function initials(name: string) {
 
 export function PersonnelPage() {
   const queryClient = useQueryClient();
-  const directoryQuery = useQuery({ queryKey: ['personnel'], queryFn: getPersonnel, refetchInterval: 15_000 });
+  const directoryQuery = useQuery({ queryKey: ['personnel'], queryFn: getPersonnel, staleTime: 30_000 });
   const [department, setDepartment] = useState('');
   const [search, setSearch] = useState('');
   const [departmentSearch, setDepartmentSearch] = useState('');
+  const [expandedDepartments, setExpandedDepartments] = useState<string[]>([]);
   const [editing, setEditing] = useState<PersonnelRecord>();
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState<PersonnelInput>(blankForm);
@@ -51,6 +53,7 @@ export function PersonnelPage() {
     });
   }, [department, personnel, search]);
   const closeModal = () => { setEditing(undefined); setIsCreating(false); setForm(blankForm); };
+  const toggleDepartment = (item: string) => setExpandedDepartments((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item]);
   const openCreate = () => { setEditing(undefined); setForm({ ...blankForm, department: department || departments[0] || '' }); setIsCreating(true); };
   const openEdit = (person: PersonnelRecord) => { setEditing(person); setForm({ name: person.name, department: person.department, position: person.position, identifier: person.identifier, active: person.active }); setIsCreating(false); };
   const submit = (event: FormEvent) => { event.preventDefault(); saveMutation.mutate(); };
@@ -74,7 +77,12 @@ export function PersonnelPage() {
             <button className={!department ? 'department-row active' : 'department-row'} onClick={() => setDepartment('')} type="button"><span>◉ Усі співробітники</span><b>{personnel.length}</b></button>
             {visibleDepartments.map((item) => {
               const count = personnel.filter((person) => person.department === item).length;
-              return <button className={department === item ? 'department-row active' : 'department-row'} key={item} onClick={() => setDepartment(item)} type="button"><span>▥ {item}</span><b>{count}</b></button>;
+              const isExpanded = expandedDepartments.includes(item);
+              const members = personnel.filter((person) => person.department === item);
+              return <div className="department-item" key={item}>
+                <button className={department === item ? 'department-row active' : 'department-row'} onClick={() => { setDepartment(item); toggleDepartment(item); }} type="button"><span><i>{isExpanded ? '⌄' : '›'}</i> ▥ {item}</span><b>{count}</b></button>
+                {isExpanded && <div className="department-members">{members.map((person) => <button key={person.token} onClick={() => openEdit(person)} title={person.name} type="button"><EventAvatar name={person.name} photoToken={person.photoToken} /><span>{person.name}</span></button>)}</div>}
+              </div>;
             })}
             {!departments.length && <p className="department-empty">Після першого додавання тут з’являться відділи.</p>}
             {!!departments.length && !visibleDepartments.length && <p className="department-empty">Відділ не знайдено.</p>}
@@ -88,7 +96,7 @@ export function PersonnelPage() {
                 <table className="personnel-table">
                   <thead><tr><th>Працівник</th><th>Відділ</th><th>Посада</th><th>Ідентифікатор</th><th>Статус</th><th aria-label="Дії" /></tr></thead>
                   <tbody>{visiblePersonnel.map((person) => <tr key={person.token} onDoubleClick={() => openEdit(person)}>
-                    <td><div className="person-cell"><i>{initials(person.name)}</i><strong>{person.name}</strong></div></td>
+                    <td><div className="person-cell"><EventAvatar name={person.name} photoToken={person.photoToken} /><strong>{person.name}</strong></div></td>
                     <td>{person.department}</td><td>{person.position || '—'}</td><td className="personnel-identifier">{person.identifier || '—'}</td>
                     <td><button className={`personnel-status ${person.active ? 'active' : ''}`} onClick={() => openEdit(person)} type="button">● {person.active ? 'Активний' : 'Неактивний'}</button></td>
                     <td><button aria-label={`Редагувати ${person.name}`} className="personnel-edit" onClick={() => openEdit(person)} type="button">⋮</button></td>
@@ -99,7 +107,7 @@ export function PersonnelPage() {
                 </table>
               </div>
             )}
-            <footer className="personnel-footer">Показано {visiblePersonnel.length} з {personnel.length} працівників · Оновлення списку кожні 15 секунд</footer>
+            <footer className="personnel-footer">Показано {visiblePersonnel.length} з {personnel.length} працівників</footer>
           </section>
         </div>
         {modalOpen && <div className="personnel-modal-backdrop" onMouseDown={closeModal} role="presentation"><section aria-label={editing ? 'Редагувати працівника' : 'Новий працівник'} className="personnel-modal" onMouseDown={(event) => event.stopPropagation()}>

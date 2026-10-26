@@ -52,6 +52,8 @@ type UproxxEmployee = {
   Token?: string | number;
   Name?: string;
   Post?: string;
+  ImageToken?: string | number;
+  PhotoToken?: string | number;
   Department?: { Name?: string };
   DepartmentName?: string;
 };
@@ -186,6 +188,7 @@ const personnelRecordSchema = z.object({
   department: z.string().trim().min(1).max(200),
   position: z.string().trim().max(200).default(''),
   identifier: z.string().trim().max(160).default(''),
+  photoToken: z.string().max(128).optional(),
   active: z.boolean().default(true),
   local: z.boolean().default(false),
   deleted: z.boolean().default(false),
@@ -230,6 +233,7 @@ function employeeToPersonnel(employee: UproxxEmployee): PersonnelRecord | undefi
     department: employee.Department?.Name || employee.DepartmentName || 'Без відділу',
     position: employee.Post || '',
     identifier: '',
+    photoToken: employee.PhotoToken === undefined && employee.ImageToken === undefined ? undefined : String(employee.PhotoToken ?? employee.ImageToken),
     active: true,
     local: false,
     deleted: false,
