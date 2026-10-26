@@ -23,6 +23,7 @@ export function PersonnelPage() {
   const directoryQuery = useQuery({ queryKey: ['personnel'], queryFn: getPersonnel, refetchInterval: 15_000 });
   const [department, setDepartment] = useState('');
   const [search, setSearch] = useState('');
+  const [departmentSearch, setDepartmentSearch] = useState('');
   const [editing, setEditing] = useState<PersonnelRecord>();
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState<PersonnelInput>(blankForm);
@@ -37,6 +38,10 @@ export function PersonnelPage() {
   });
   const personnel = directoryQuery.data?.personnel ?? [];
   const departments = directoryQuery.data?.departments ?? [];
+  const visibleDepartments = useMemo(() => {
+    const normalized = departmentSearch.trim().toLocaleLowerCase('uk-UA');
+    return departments.filter((item) => !normalized || item.toLocaleLowerCase('uk-UA').includes(normalized));
+  }, [departmentSearch, departments]);
   const visiblePersonnel = useMemo(() => {
     const normalized = search.trim().toLocaleLowerCase('uk-UA');
     return personnel.filter((person) => {
@@ -65,17 +70,18 @@ export function PersonnelPage() {
         <div className="personnel-workspace">
           <aside className="department-panel" aria-label="Структура відділів">
             <div className="department-heading"><div><b>Структура відділів</b><span>{personnel.length} працівників</span></div></div>
+            <label className="department-search"><span>⌕</span><input onChange={(event) => setDepartmentSearch(event.target.value)} placeholder="Пошук відділу" value={departmentSearch} /></label>
             <button className={!department ? 'department-row active' : 'department-row'} onClick={() => setDepartment('')} type="button"><span>◉ Усі співробітники</span><b>{personnel.length}</b></button>
-            {departments.map((item) => {
+            {visibleDepartments.map((item) => {
               const count = personnel.filter((person) => person.department === item).length;
               return <button className={department === item ? 'department-row active' : 'department-row'} key={item} onClick={() => setDepartment(item)} type="button"><span>▥ {item}</span><b>{count}</b></button>;
             })}
             {!departments.length && <p className="department-empty">Після першого додавання тут з’являться відділи.</p>}
+            {!!departments.length && !visibleDepartments.length && <p className="department-empty">Відділ не знайдено.</p>}
           </aside>
           <section className="personnel-list-panel">
             <div className="personnel-toolbar">
-              <label className="personnel-search"><span>⌕</span><input onChange={(event) => setSearch(event.target.value)} placeholder="Пошук за ПІБ, відділом або ідентифікатором" value={search} /></label>
-              <select aria-label="Відділ" onChange={(event) => setDepartment(event.target.value)} value={department}><option value="">Усі відділи</option>{departments.map((item) => <option key={item}>{item}</option>)}</select>
+              <label className="personnel-search"><span>⌕</span><input onChange={(event) => setSearch(event.target.value)} placeholder="Пошук працівника: ПІБ або ідентифікатор" value={search} /></label>
             </div>
             {directoryQuery.isError ? <div className="personnel-error">Не вдалося отримати список персоналу: {directoryQuery.error.message}</div> : (
               <div className="personnel-table-wrap">
