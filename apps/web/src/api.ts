@@ -54,6 +54,18 @@ export type PlanLiveController = {
   warnings: string[];
 };
 
+export type PersonnelRecord = {
+  token: string;
+  name: string;
+  department: string;
+  position: string;
+  identifier: string;
+  active: boolean;
+  local: boolean;
+};
+export type PersonnelDirectory = { personnel: PersonnelRecord[]; departments: string[] };
+export type PersonnelInput = Omit<PersonnelRecord, 'token' | 'local'>;
+
 export async function getHealth(): Promise<HealthResponse> {
   const response = await fetch('/api/health');
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
@@ -64,6 +76,33 @@ export async function getPlanCatalog(): Promise<PlanCatalog> {
   const response = await fetch('/api/plan/catalog');
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
   return response.json();
+}
+
+export async function getPersonnel(): Promise<PersonnelDirectory> {
+  const response = await fetch('/api/personnel');
+  if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
+  return response.json();
+}
+
+export async function createPersonnel(input: PersonnelInput): Promise<PersonnelRecord> {
+  const response = await fetch('/api/personnel', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
+  return response.json();
+}
+
+export async function updatePersonnel(token: string, input: PersonnelInput): Promise<PersonnelRecord> {
+  const response = await fetch(`/api/personnel/${encodeURIComponent(token)}`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
+  return response.json();
+}
+
+export async function deletePersonnel(token: string) {
+  const response = await fetch(`/api/personnel/${encodeURIComponent(token)}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
 }
 
 type PlanElementsResponse = { floor: string; elements: PlanElement[] };

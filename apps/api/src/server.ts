@@ -37,6 +37,7 @@ app.log.info({ mode: env.MOCK_UPROX, envFile }, 'U-PROX integration configuratio
 const planStorageFile = env.PLAN_STORAGE_FILE
   ? resolve(env.PLAN_STORAGE_FILE)
   : resolve(moduleDirectory, '../data/plan-elements.json');
+const personnelStorageFile = resolve(dirname(planStorageFile), 'personnel-overrides.json');
 await app.register(rateLimit, { global: false });
 type Session = { sid: string; expiresAt: number };
 let session: Session | undefined;
@@ -177,6 +178,111 @@ app.put('/api/plan/elements/:floor', async (request) => {
   sharedPlanElements[floor] = elements;
   await persistSharedPlanElements();
   return { floor, elements };
+});
+
+const personnelRecordSchema = z.object({
+  token: z.string().min(1).max(128),
+  name: z.string().trim().min(2).max(300),
+  department: z.string().trim().min(1).max(200),
+  position: z.string().trim().max(200).default(''),
+  identifier: z.string().trim().max(160).default(''),
+  active: z.boolean().default(true),
+  local: z.boolean().default(false),
+  deleted: z.boolean().default(false),
+});
+const personnelBody = personnelRecordSchema.omit({ token: true, local: true, deleted: true });
+type PersonnelRecord = z.infer<typeof personnelRecordSchema>;
+let personnelOverrides: Record<string, PersonnelRecord> = {};
+let loadPersonnelOverrides: Promise<void> | undefined;
+let personnelWrite = Promise.resolve();
+
+async function ensurePersonnelOverridesLoaded() {
+  if (!loadPersonnelOverrides) {
+    loadPersonnelOverrides = (async () => {
+      try {
+        const source = await readFile(personnelStorageFile, 'utf8');
+        const parsed = z.record(z.string(), personnelRecordSchema).safeParse(JSON.parse(source));
+        if (parsed.success) personnelOverrides = parsed.data;
+        else app.log.warn({ personnelStorageFile }, 'Personnel storage has an invalid format; starting with an empty list');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    })();
+  }
+  await loadPersonnelOverrides;
+}
+
+async function persistPersonnelOverrides() {
+  personnelWrite = personnelWrite.catch(() => undefined).then(async () => {
+    await mkdir(dirname(personnelStorageFile), { recursive: true });
+    const temporaryFile = `${personnelStorageFile}.tmp`;
+    await writeFile(temporaryFile, JSON.stringify(personnelOverrides, null, 2), 'utf8');
+    await rename(temporaryFile, personnelStorageFile);
+  });
+  await personnelWrite;
+}
+
+function employeeToPersonnel(employee: UproxxEmployee): PersonnelRecord | undefined {
+  if (employee.Token === undefined) return undefined;
+  return {
+    token: String(employee.Token),
+    name: employee.Name?.trim() || `Працівник ${employee.Token}`,
+    department: employee.Department?.Name || employee.DepartmentName || 'Без відділу',
+    position: employee.Post || '',
+    identifier: '',
+    active: true,
+    local: false,
+    deleted: false,
+  };
+}
+
+async function listPersonnel() {
+  await ensurePersonnelOverridesLoaded();
+  const merged = new Map<string, PersonnelRecord>();
+  for (const employee of (await getEmployeeDirectory()) as UproxxEmployee[]) {
+    const record = employeeToPersonnel(employee);
+    if (record) merged.set(record.token, { ...record, ...personnelOverrides[record.token], local: false });
+  }
+  Object.values(personnelOverrides).forEach((record) => {
+    if (record.local) merged.set(record.token, record);
+  });
+  const personnel = [...merged.values()]
+    .filter((record) => !record.deleted)
+    .sort((left, right) => left.name.localeCompare(right.name, 'uk-UA'));
+  const departments = [...new Set(personnel.map((record) => record.department))].sort((left, right) => left.localeCompare(right, 'uk-UA'));
+  return { personnel, departments };
+}
+
+app.get('/api/personnel', async () => listPersonnel());
+
+app.post('/api/personnel', async (request, reply) => {
+  const input = personnelBody.parse(request.body);
+  await ensurePersonnelOverridesLoaded();
+  const token = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const record: PersonnelRecord = { ...input, token, local: true, deleted: false };
+  personnelOverrides[token] = record;
+  await persistPersonnelOverrides();
+  return reply.code(201).send(record);
+});
+
+app.put('/api/personnel/:token', async (request, reply) => {
+  const { token } = z.object({ token: z.string().min(1).max(128) }).parse(request.params);
+  const input = personnelBody.parse(request.body);
+  const current = (await listPersonnel()).personnel.find((record) => record.token === token);
+  if (!current) return reply.code(404).send({ error: 'Працівника не знайдено' });
+  const record: PersonnelRecord = { ...current, ...input, token };
+  personnelOverrides[token] = record;
+  await persistPersonnelOverrides();
+  return record;
+});
+
+app.delete('/api/personnel/:token', async (request, reply) => {
+  const { token } = z.object({ token: z.string().min(1).max(128) }).parse(request.params);
+  const current = (await listPersonnel()).personnel.find((record) => record.token === token);
+  if (!current) return reply.code(404).send({ error: 'Працівника не знайдено' });
+  personnelOverrides[token] = { ...current, deleted: true };
+  await persistPersonnelOverrides();
+  return reply.code(204).send();
 });
 
 type UproxxCatalogRecord = Record<string, unknown>;
