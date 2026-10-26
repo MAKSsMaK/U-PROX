@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createPersonnel,
@@ -6,14 +6,25 @@ import {
   getPersonnel,
   updatePersonnel,
   type PersonnelInput,
+  type PersonnelIdentifier,
   type PersonnelRecord,
 } from '../api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { EventAvatar } from '../components/events/EventAvatar';
 
 const blankForm: PersonnelInput = {
-  name: '', department: '', position: '', identifier: '', active: true,
+  name: '', department: '', position: '', identifier: '', photoData: null,
+  employeeNumber: '', email: '', accessLevel: 'inherit', identifiers: [], active: true,
 };
+
+const identifierLabels: Record<PersonnelIdentifier['type'], string> = {
+  card: 'Картка', key_fob: 'Брелок', bracelet: 'Браслет', face: 'Обличчя', fingerprint: 'Відбиток пальця',
+};
+const biometricTypes = new Set<PersonnelIdentifier['type']>(['face', 'fingerprint']);
+
+function createIdentifier(type: PersonnelIdentifier['type'] = 'card'): PersonnelIdentifier {
+  return { id: `identifier-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`, type, value: '', validUntil: 'always' };
+}
 
 export function PersonnelPage() {
   const queryClient = useQueryClient();
@@ -51,8 +62,29 @@ export function PersonnelPage() {
   const closeModal = () => { setEditing(undefined); setIsCreating(false); setForm(blankForm); };
   const toggleDepartment = (item: string) => setExpandedDepartments((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item]);
   const openCreate = () => { setEditing(undefined); setForm({ ...blankForm, department: department || departments[0] || '' }); setIsCreating(true); };
-  const openEdit = (person: PersonnelRecord) => { setEditing(person); setForm({ name: person.name, department: person.department, position: person.position, identifier: person.identifier, active: person.active }); setIsCreating(false); };
+  const openEdit = (person: PersonnelRecord) => {
+    setEditing(person);
+    setForm({
+      name: person.name, department: person.department, position: person.position, identifier: person.identifier,
+      photoData: person.photoData, employeeNumber: person.employeeNumber, email: person.email,
+      accessLevel: person.accessLevel, identifiers: person.identifiers, active: person.active,
+    });
+    setIsCreating(false);
+  };
   const submit = (event: FormEvent) => { event.preventDefault(); saveMutation.mutate(); };
+  const updateIdentifier = (id: string, patch: Partial<PersonnelIdentifier>) => setForm((current) => ({
+    ...current, identifiers: current.identifiers.map((item) => item.id === id ? { ...item, ...patch } : item),
+  }));
+  const addIdentifier = (type: PersonnelIdentifier['type'] = 'card') => setForm((current) => ({ ...current, identifiers: [...current.identifiers, createIdentifier(type)] }));
+  const removeIdentifier = (id: string) => setForm((current) => ({ ...current, identifiers: current.identifiers.filter((item) => item.id !== id) }));
+  const onPhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/') || file.size > 2_000_000) return;
+    const reader = new FileReader();
+    reader.onload = () => setForm((current) => ({ ...current, photoData: typeof reader.result === 'string' ? reader.result : current.photoData }));
+    reader.readAsDataURL(file);
+  };
   const modalOpen = isCreating || Boolean(editing);
 
   return (
@@ -77,7 +109,7 @@ export function PersonnelPage() {
               const members = personnel.filter((person) => person.department === item);
               return <div className="department-item" key={item}>
                 <button className={department === item ? 'department-row active' : 'department-row'} onClick={() => { setDepartment(item); toggleDepartment(item); }} type="button"><span><i>{isExpanded ? '⌄' : '›'}</i>{item}</span><b>{count}</b></button>
-                {isExpanded && <div className="department-members">{members.map((person) => <button key={person.token} onClick={() => openEdit(person)} title={person.name} type="button"><EventAvatar name={person.name} photoToken={person.photoToken} /><span>{person.name}</span></button>)}</div>}
+                {isExpanded && <div className="department-members">{members.map((person) => <button key={person.token} onClick={() => openEdit(person)} title={person.name} type="button"><EventAvatar name={person.name} photoData={person.photoData ?? undefined} photoToken={person.photoToken} /><span>{person.name}</span></button>)}</div>}
               </div>;
             })}
             {!departments.length && <p className="department-empty">Після першого додавання тут з’являться відділи.</p>}
@@ -92,7 +124,7 @@ export function PersonnelPage() {
                 <table className="personnel-table">
                   <thead><tr><th>Працівник</th><th>Відділ</th><th>Посада</th><th>Ідентифікатор</th><th>Статус</th><th aria-label="Дії" /></tr></thead>
                   <tbody>{visiblePersonnel.map((person) => <tr key={person.token} onDoubleClick={() => openEdit(person)}>
-                    <td><div className="person-cell"><EventAvatar name={person.name} photoToken={person.photoToken} /><strong>{person.name}</strong></div></td>
+                    <td><div className="person-cell"><EventAvatar name={person.name} photoData={person.photoData ?? undefined} photoToken={person.photoToken} /><strong>{person.name}</strong></div></td>
                     <td>{person.department}</td><td>{person.position || '—'}</td><td className="personnel-identifier">{person.identifier || '—'}</td>
                     <td><button className={`personnel-status ${person.active ? 'active' : ''}`} onClick={() => openEdit(person)} type="button">● {person.active ? 'Активний' : 'Неактивний'}</button></td>
                     <td><button aria-label={`Редагувати ${person.name}`} className="personnel-edit" onClick={() => openEdit(person)} type="button">⋮</button></td>
@@ -111,17 +143,32 @@ export function PersonnelPage() {
           <form onSubmit={submit}>
             <div className="personnel-form-grid">
               <div className="personnel-photo">
-                <EventAvatar name={form.name} photoToken={editing?.photoToken} />
-                <span>{editing?.photoToken ? 'Фото отримано з U‑PROX.' : 'У U‑PROX для цього працівника фото поки відсутнє.'}</span>
+                <EventAvatar name={form.name} photoData={form.photoData ?? undefined} photoToken={editing?.photoToken} />
+                <label className="personnel-photo-upload">Завантажити фото<input accept="image/jpeg,image/png,image/webp" onChange={onPhotoChange} type="file" /></label>
+                {form.photoData && <button className="personnel-photo-remove" onClick={() => setForm((current) => ({ ...current, photoData: null }))} type="button">Прибрати локальне фото</button>}
+                <span>{form.photoData ? 'Локальне фото для цього центру.' : editing?.photoToken ? 'Фото отримано з U‑PROX.' : 'У U‑PROX для цього працівника фото поки відсутнє.'}</span>
               </div>
               <div className="personnel-fields">
                 <label className="wide">ПІБ<input autoFocus onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Наприклад: Петренко Іван Петрович" required value={form.name} /></label>
-                <label>Відділ<input list="personnel-departments" onChange={(event) => setForm((current) => ({ ...current, department: event.target.value }))} placeholder="Оберіть або введіть відділ" required value={form.department} /><datalist id="personnel-departments">{departments.map((item) => <option key={item} value={item} />)}</datalist></label>
+                <label>Відділ<select onChange={(event) => setForm((current) => ({ ...current, department: event.target.value === '__new__' ? '' : event.target.value }))} required value={departments.includes(form.department) ? form.department : '__new__'}><option value="__new__">Створити або ввести інший відділ…</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select>{!departments.includes(form.department) && <input onChange={(event) => setForm((current) => ({ ...current, department: event.target.value }))} placeholder="Назва нового відділу" required value={form.department} />}</label>
                 <label>Посада<input onChange={(event) => setForm((current) => ({ ...current, position: event.target.value }))} placeholder="Посада" value={form.position} /></label>
-                <label className="wide">Ідентифікатор / картка<input onChange={(event) => setForm((current) => ({ ...current, identifier: event.target.value }))} placeholder="Номер картки або брелока" value={form.identifier} /></label>
+                <label>Табельний номер<input onChange={(event) => setForm((current) => ({ ...current, employeeNumber: event.target.value }))} placeholder="Наприклад: 00427" value={form.employeeNumber} /></label>
+                <label>Електронна пошта<input onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="name@company.ua" type="email" value={form.email} /></label>
+                <label className="wide">Рівень доступу<select onChange={(event) => setForm((current) => ({ ...current, accessLevel: event.target.value }))} value={form.accessLevel}>{!['inherit', 'none'].includes(form.accessLevel) && <option value={form.accessLevel}>{form.accessLevel}</option>}<option value="inherit">Успадковувати доступ відділу</option><option value="none">Без доступу</option></select><small>Індивідуальні рівні доступу додамо після підключення довідника рівнів з U‑PROX.</small></label>
                 <label className="personnel-toggle"><input checked={form.active} onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))} type="checkbox" /><span><b>Активний працівник</b><small>Неактивний працівник не матиме доступу.</small></span></label>
               </div>
             </div>
+            <section className="personnel-identifiers">
+              <div className="personnel-section-heading"><div><b>Ідентифікатори</b><span>Картки, брелоки та біометричні шаблони</span></div><button onClick={() => addIdentifier()} type="button">＋ Додати</button></div>
+              {!!form.identifiers.length && <div className="personnel-identifier-list">{form.identifiers.map((item) => <div className="personnel-identifier-row" key={item.id}>
+                <select aria-label="Тип ідентифікатора" onChange={(event) => updateIdentifier(item.id, { type: event.target.value as PersonnelIdentifier['type'] })} value={item.type}>{Object.entries(identifierLabels).map(([type, label]) => <option key={type} value={type}>{label}</option>)}</select>
+                <input aria-label="Код ідентифікатора" onChange={(event) => updateIdentifier(item.id, { value: event.target.value })} placeholder={biometricTypes.has(item.type) ? 'Код шаблону в U‑PROX' : 'Номер картки або брелока'} required value={item.value} />
+                <select aria-label="Термін дії" onChange={(event) => updateIdentifier(item.id, { validUntil: event.target.value })} value={item.validUntil}><option value="always">Завжди</option><option value="temporary">Тимчасово</option></select>
+                <button aria-label="Видалити ідентифікатор" onClick={() => removeIdentifier(item.id)} type="button">×</button>
+              </div>)}</div>}
+              {!form.identifiers.length && <p>Ідентифікаторів ще немає. Додайте картку, брелок або біометричний шаблон.</p>}
+              <div className="personnel-biometric-actions"><span>Біометричні ідентифікатори</span><button onClick={() => addIdentifier('face')} type="button">＋ Обличчя</button><button onClick={() => addIdentifier('fingerprint')} type="button">＋ Відбиток</button></div>
+            </section>
             {saveMutation.isError && <p className="personnel-form-error">Не вдалося зберегти: {saveMutation.error.message}</p>}
             <footer className="personnel-modal-footer">
               {editing && <button className="personnel-delete" disabled={deleteMutation.isPending} onClick={() => window.confirm(`Видалити «${editing.name}» зі списку?`) && deleteMutation.mutate(editing.token)} type="button">Видалити</button>}

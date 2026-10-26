@@ -56,7 +56,18 @@ type UproxxEmployee = {
   PhotoToken?: string | number;
   Department?: { Name?: string };
   DepartmentName?: string;
+  Email?: string;
+  EmployeeNumber?: string | number;
+  PersonnelNumber?: string | number;
+  AccessLevel?: { Name?: string };
+  AccessLevelName?: string;
 };
+const personnelIdentifierSchema = z.object({
+  id: z.string().min(1).max(128),
+  type: z.enum(['card', 'key_fob', 'bracelet', 'face', 'fingerprint']),
+  value: z.string().trim().min(1).max(160),
+  validUntil: z.string().max(40).default('always'),
+});
 // U-PROX requires uppercase hexadecimal MD5 values (0-9 and A-F).
 const md5 = (s: string) => createHash('md5').update(s).digest('hex').toUpperCase();
 function passwordHash(password: string) {
@@ -189,6 +200,11 @@ const personnelRecordSchema = z.object({
   position: z.string().trim().max(200).default(''),
   identifier: z.string().trim().max(160).default(''),
   photoToken: z.string().max(128).optional(),
+  photoData: z.string().regex(/^data:image\/(?:png|jpe?g|webp);base64,/).max(2_800_000).nullable().optional(),
+  employeeNumber: z.string().trim().max(80).default(''),
+  email: z.string().trim().email().or(z.literal('')).default(''),
+  accessLevel: z.string().trim().max(200).default('inherit'),
+  identifiers: z.array(personnelIdentifierSchema).max(30).default([]),
   active: z.boolean().default(true),
   local: z.boolean().default(false),
   deleted: z.boolean().default(false),
@@ -234,6 +250,10 @@ function employeeToPersonnel(employee: UproxxEmployee): PersonnelRecord | undefi
     position: employee.Post || '',
     identifier: '',
     photoToken: employee.PhotoToken === undefined && employee.ImageToken === undefined ? undefined : String(employee.PhotoToken ?? employee.ImageToken),
+    employeeNumber: employee.EmployeeNumber === undefined && employee.PersonnelNumber === undefined ? '' : String(employee.EmployeeNumber ?? employee.PersonnelNumber),
+    email: employee.Email || '',
+    accessLevel: employee.AccessLevel?.Name || employee.AccessLevelName || 'inherit',
+    identifiers: [],
     active: true,
     local: false,
     deleted: false,
@@ -252,6 +272,9 @@ async function listPersonnel() {
   });
   const personnel = [...merged.values()]
     .filter((record) => !record.deleted)
+    .map((record) => record.identifiers.length || !record.identifier
+      ? record
+      : { ...record, identifiers: [{ id: `legacy-${record.token}`, type: 'card' as const, value: record.identifier, validUntil: 'always' }] })
     .sort((left, right) => left.name.localeCompare(right.name, 'uk-UA'));
   const departments = [...new Set(personnel.map((record) => record.department))].sort((left, right) => left.localeCompare(right, 'uk-UA'));
   return { personnel, departments };
@@ -478,7 +501,7 @@ async function getEmployeeDirectory() {
       SubscriptionEnabled: false,
       Limit: env.UPROX_EMPLOYEE_DIRECTORY_LIMIT,
       StartToken: 0,
-      AdditionalFieldsRequired: false,
+      AdditionalFieldsRequired: true,
       DepartmentUsed: false,
       HideDismissed: true,
     })) as { Employee?: unknown[] };

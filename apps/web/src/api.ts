@@ -61,8 +61,20 @@ export type PersonnelRecord = {
   position: string;
   identifier: string;
   photoToken?: string;
+  photoData?: string | null;
+  employeeNumber: string;
+  email: string;
+  /** "inherit" means that the employee inherits the department access level. */
+  accessLevel: string;
+  identifiers: PersonnelIdentifier[];
   active: boolean;
   local: boolean;
+};
+export type PersonnelIdentifier = {
+  id: string;
+  type: 'card' | 'key_fob' | 'bracelet' | 'face' | 'fingerprint';
+  value: string;
+  validUntil: string;
 };
 export type PersonnelDirectory = { personnel: PersonnelRecord[]; departments: string[] };
 export type PersonnelInput = Omit<PersonnelRecord, 'token' | 'local'>;

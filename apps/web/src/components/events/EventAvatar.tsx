@@ -3,6 +3,7 @@ import { useState } from 'react';
 type EventAvatarProps = {
   name: string;
   photoToken?: string;
+  photoData?: string;
 };
 
 function initials(name: string) {
@@ -14,10 +15,12 @@ function initials(name: string) {
   return letters.join('').toUpperCase() || '—';
 }
 
-export function EventAvatar({ name, photoToken }: EventAvatarProps) {
+export function EventAvatar({ name, photoToken, photoData }: EventAvatarProps) {
   const [failed, setFailed] = useState(false);
 
-  if (!photoToken || failed) {
+  const source = photoData || (photoToken ? `/api/images/${encodeURIComponent(photoToken)}` : undefined);
+
+  if (!source || failed) {
     return (
       <span
         aria-label={`Фото: ${name}`}
@@ -36,7 +39,7 @@ export function EventAvatar({ name, photoToken }: EventAvatarProps) {
       decoding="async"
       loading="lazy"
       onError={() => setFailed(true)}
-      src={`/api/images/${encodeURIComponent(photoToken)}`}
+      src={source}
     />
   );
 }
