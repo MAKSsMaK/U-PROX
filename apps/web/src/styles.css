@@ -1153,7 +1153,7 @@ pre {
 .department-row:hover { background: #122b45; }
 .department-row.active { background: #123956; box-shadow: inset 2px 0 #1bc1ff; color: #effbff; }
 .department-row b { min-width: 20px; border-radius: 12px; padding: 2px 6px; background: #1b4261; color: #93cfff; font-size: 10px; text-align: center; }
-.department-row i { display: inline-block; width: 9px; color: #68bfe9; font-style: normal; }
+.department-row i { display: inline-block; width: 9px; margin-right: 4px; color: #68bfe9; font-style: normal; }
 .department-members { display: grid; gap: 1px; margin: 1px 3px 5px 16px; border-left: 1px solid #1d4967; padding-left: 6px; }
 .department-members button { display: flex; min-width: 0; align-items: center; gap: 6px; border: 0; border-radius: 4px; padding: 4px; background: transparent; color: #a8c4db; font: 600 10px Manrope; text-align: left; cursor: pointer; }
 .department-members button:hover { background: #122c45; color: #e5f5ff; }
@@ -1175,8 +1175,8 @@ pre {
 .personnel-table th:nth-child(1) { width: 27%; }.personnel-table th:nth-child(2) { width: 18%; }.personnel-table th:nth-child(3) { width: 20%; }.personnel-table th:nth-child(4) { width: 16%; }.personnel-table th:nth-child(5) { width: 15%; }
 .personnel-table td { padding: 10px 14px; border-top: 1px solid #1c334b; color: #c4d5e7; font-size: 12px; vertical-align: middle; }
 .personnel-table tbody tr { cursor: pointer; }.personnel-table tbody tr:hover { background: #10243a; }
-.person-cell { display: flex; align-items: center; gap: 9px; }.personnel-photo i { display: inline-grid; place-items: center; flex: 0 0 auto; border: 1px solid #4b83ad; border-radius: 50%; background: #153653; color: #d6efff; font-style: normal; font-weight: 800; }
-.person-cell .event-avatar { width: 31px; height: 31px; font-size: 10px; }.person-cell strong { color: #e4f1ff; font-size: 12px; }
+.person-cell { display: flex; align-items: center; gap: 9px; min-height: 31px; }.personnel-photo i { display: inline-grid; place-items: center; flex: 0 0 auto; border: 1px solid #4b83ad; border-radius: 50%; background: #153653; color: #d6efff; font-style: normal; font-weight: 800; }
+.person-cell .event-avatar { display: grid; width: 31px; height: 31px; flex: 0 0 31px; align-self: center; font-size: 10px; }.person-cell strong { color: #e4f1ff; font-size: 12px; line-height: 1.35; }
 .personnel-identifier { color: #94c7eb !important; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .personnel-status { border: 0; border-radius: 14px; padding: 5px 8px; background: #124330; color: #70e4a6; font: 700 10px Manrope; cursor: pointer; }.personnel-status:not(.active) { background: #3b2630; color: #ff9ea9; }
 .personnel-edit { border: 0; padding: 4px; background: transparent; color: #8cb2d3; font: 800 18px/1 Manrope; cursor: pointer; }

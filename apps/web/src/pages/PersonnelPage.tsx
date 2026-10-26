@@ -80,7 +80,7 @@ export function PersonnelPage() {
               const isExpanded = expandedDepartments.includes(item);
               const members = personnel.filter((person) => person.department === item);
               return <div className="department-item" key={item}>
-                <button className={department === item ? 'department-row active' : 'department-row'} onClick={() => { setDepartment(item); toggleDepartment(item); }} type="button"><span><i>{isExpanded ? '⌄' : '›'}</i> ▥ {item}</span><b>{count}</b></button>
+                <button className={department === item ? 'department-row active' : 'department-row'} onClick={() => { setDepartment(item); toggleDepartment(item); }} type="button"><span><i>{isExpanded ? '⌄' : '›'}</i>{item}</span><b>{count}</b></button>
                 {isExpanded && <div className="department-members">{members.map((person) => <button key={person.token} onClick={() => openEdit(person)} title={person.name} type="button"><EventAvatar name={person.name} photoToken={person.photoToken} /><span>{person.name}</span></button>)}</div>}
               </div>;
             })}
