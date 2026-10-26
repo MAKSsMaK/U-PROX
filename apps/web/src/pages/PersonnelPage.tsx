@@ -15,10 +15,6 @@ const blankForm: PersonnelInput = {
   name: '', department: '', position: '', identifier: '', active: true,
 };
 
-function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '—';
-}
-
 export function PersonnelPage() {
   const queryClient = useQueryClient();
   const directoryQuery = useQuery({ queryKey: ['personnel'], queryFn: getPersonnel, staleTime: 30_000 });
@@ -114,7 +110,10 @@ export function PersonnelPage() {
           <div className="personnel-modal-header"><h2>{editing ? 'Редагувати працівника' : 'Новий працівник'}</h2><button aria-label="Закрити" onClick={closeModal} type="button">×</button></div>
           <form onSubmit={submit}>
             <div className="personnel-form-grid">
-              <label className="personnel-photo"><i>{initials(form.name)}</i><span>Фото працівника можна буде підключити з U‑PROX.</span></label>
+              <div className="personnel-photo">
+                <EventAvatar name={form.name} photoToken={editing?.photoToken} />
+                <span>{editing?.photoToken ? 'Фото отримано з U‑PROX.' : 'У U‑PROX для цього працівника фото поки відсутнє.'}</span>
+              </div>
               <div className="personnel-fields">
                 <label className="wide">ПІБ<input autoFocus onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Наприклад: Петренко Іван Петрович" required value={form.name} /></label>
                 <label>Відділ<input list="personnel-departments" onChange={(event) => setForm((current) => ({ ...current, department: event.target.value }))} placeholder="Оберіть або введіть відділ" required value={form.department} /><datalist id="personnel-departments">{departments.map((item) => <option key={item} value={item} />)}</datalist></label>

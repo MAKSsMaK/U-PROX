@@ -1185,7 +1185,7 @@ pre {
 .personnel-modal-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 20px; background: #020914b8; backdrop-filter: blur(3px); }
 .personnel-modal { width: min(720px, 100%); max-height: calc(100dvh - 40px); overflow: auto; border: 1px solid #315a7c; border-radius: 10px; background: #0b1a2b; box-shadow: 0 20px 80px #000b; }
 .personnel-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid #29425a; }.personnel-modal-header h2 { margin: 0; color: #f2f8ff; font-size: 19px; }.personnel-modal-header button { border: 0; background: transparent; color: #a8c5dc; font-size: 26px; cursor: pointer; }
-.personnel-form-grid { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 24px; padding: 22px; }.personnel-photo { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #7995ae; font-size: 11px; line-height: 1.4; text-align: center; }.personnel-photo i { width: 94px; height: 94px; font-size: 27px; }
+.personnel-form-grid { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 24px; padding: 22px; }.personnel-photo { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #7995ae; font-size: 11px; line-height: 1.4; text-align: center; }.personnel-photo .event-avatar { width: 94px; height: 94px; flex: 0 0 94px; border-color: #4382af; font-size: 27px; }
 .personnel-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }.personnel-fields label { display: grid; gap: 6px; color: #b8d1e7; font-size: 11px; font-weight: 700; }.personnel-fields .wide { grid-column: 1 / -1; }.personnel-fields input { box-sizing: border-box; border: 1px solid #345674; border-radius: 6px; padding: 10px; background: #0d2236; }
 .personnel-toggle { grid-column: 1 / -1; display: flex !important; grid-template-columns: auto 1fr; align-items: center; gap: 10px; }.personnel-toggle input { width: 38px; accent-color: #20c5ff; }.personnel-toggle span b, .personnel-toggle small { display: block; }.personnel-toggle small { margin-top: 2px; color: #7797b1; font-weight: 500; }
 .personnel-form-error { margin: 0 22px 12px; }.personnel-modal-footer { display: flex; align-items: center; gap: 9px; padding: 15px 22px; border-top: 1px solid #29425a; }.personnel-modal-footer > span { flex: 1; }.personnel-cancel { border: 1px solid #385a78; background: transparent; color: #c2d8ec; }.personnel-delete { border: 1px solid #93414c; background: #2a1720; color: #ff9aa4; }
@@ -1195,7 +1195,8 @@ pre {
   .department-heading { display: flex; }
   .department-row { width: 100%; white-space: nowrap; }
   .personnel-form-grid { grid-template-columns: 1fr; }
-  .personnel-photo { display: none; }
+  .personnel-photo { display: flex; flex-direction: row; justify-content: flex-start; text-align: left; }
+  .personnel-photo .event-avatar { width: 54px; height: 54px; flex-basis: 54px; font-size: 16px; }
 }
 .plan-editor-page .page-header { height: 58px; flex: 0 0 auto; padding: 0; }
 .plan-editor-page .page-header h1 { font-size: 18px; }
