@@ -425,6 +425,20 @@ select {
   transform: translate(-50%, -195%);
   white-space: nowrap;
 }
+.map-plan-label > span {
+  display: inline-block;
+  white-space: nowrap;
+}
+.map-plan-label.is-scrolling > span {
+  animation: plan-label-scroll 5s linear infinite;
+}
+@keyframes plan-label-scroll {
+  0%, 18% { transform: translateX(0); }
+  82%, 100% { transform: translateX(var(--label-scroll-distance)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-plan-label.is-scrolling > span { animation: none; }
+}
 .plan-watermark {
   position: absolute;
   bottom: 14px;

@@ -1,12 +1,42 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getEvents, getPlanElements } from '../../api';
 import { useStore } from '../../store';
-import { planElementIcon } from '../../features/plans/planElements';
+import { planElementIcon, type PlanElement } from '../../features/plans/planElements';
 import { getFloorPlan } from '../../features/plans/floorPlans';
 import { eventMatchesObject, toEventTableRows, type EventTableRow } from '../../features/events/eventTable';
 
 type MapEventState = 'opened' | 'closed' | 'alert' | 'activity';
+
+function ScrollingPlanLabel({ element }: { element: PlanElement }) {
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [scrollDistance, setScrollDistance] = useState(0);
+
+  useLayoutEffect(() => {
+    const updateDistance = () => {
+      const label = labelRef.current;
+      const text = textRef.current;
+      if (!label || !text) return;
+      setScrollDistance(Math.max(0, Math.ceil(text.scrollWidth - label.clientWidth)));
+    };
+    updateDistance();
+    const observer = new ResizeObserver(updateDistance);
+    if (labelRef.current) observer.observe(labelRef.current);
+    return () => observer.disconnect();
+  }, [element.name]);
+
+  return (
+    <span
+      className={`map-plan-label ${scrollDistance ? 'is-scrolling' : ''}`}
+      ref={labelRef}
+      style={{ left: `${element.x}%`, top: `${element.y}%`, '--label-scroll-distance': `-${scrollDistance}px` } as CSSProperties}
+      title={element.name}
+    >
+      <span ref={textRef}>{element.name}</span>
+    </span>
+  );
+}
 
 function eventState(eventName: string): MapEventState {
   const name = eventName.toLocaleLowerCase('uk-UA');
@@ -179,9 +209,7 @@ export function FloorMap() {
                 lastEvent && (pulseUntil[element.id] > Date.now() || Date.now() - lastEvent.occurredAtMs < 5_000),
               );
               return element.type === 'label' ? (
-                <span className="map-plan-label" key={element.id} style={{ left: `${element.x}%`, top: `${element.y}%` }}>
-                  {element.name}
-                </span>
+                <ScrollingPlanLabel element={element} key={element.id} />
               ) : (
                 <button
                   aria-label={element.name}
