@@ -9,6 +9,12 @@ export const floorOptions = ['Підвал', '1 поверх', '2 поверх',
 
 const plans: FloorPlanDefinition[] = [
   {
+    floor: 'Підвал',
+    imageUrl: '/floor-plans/court-basement-blueprint.png',
+    alt: 'План підвалу суду',
+    aspectRatio: '1672 / 941',
+  },
+  {
     floor: '1 поверх',
     imageUrl: '/floor-plans/court-floor-1-blueprint.png',
     alt: 'План першого поверху суду',

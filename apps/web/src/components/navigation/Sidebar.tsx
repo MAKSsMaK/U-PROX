@@ -9,6 +9,7 @@ const navigation = [
   ['▣', 'Точки доступу', '/access-points'],
   ['◈', 'Пристрої', '/devices'],
   ['♙', 'Персонал', '/personnel'],
+  ['▤', 'Звіти', '/reports'],
   ['▤', 'Журнал аудиту', '/audit'],
   ['⚙', 'Інтеграція', '/integration'],
 ] as const;
