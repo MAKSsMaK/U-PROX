@@ -68,33 +68,35 @@ export function LiveEventFeed({ collapsed, onToggle }: LiveEventFeedProps) {
       {collapsed ? <button aria-label="Розгорнути панель даних та подій" className="feed-collapse-toggle" onClick={onToggle} title="Розгорнути дані та події" type="button">‹</button> : <>
       <div className="feed-title">
         <b>Об’єкт на плані</b>
-        <span className="feed-title-actions"><em>{selected ? 'ПРИВ’ЯЗАНО' : 'НЕ ОБРАНО'}</em><button aria-expanded={!detailsCollapsed} aria-label={detailsCollapsed ? 'Розгорнути деталі об’єкта' : 'Згорнути деталі об’єкта'} className="feed-details-toggle" onClick={() => setDetailsCollapsed((current) => !current)} title={detailsCollapsed ? 'Розгорнути деталі' : 'Згорнути деталі'} type="button">{detailsCollapsed ? '⌄' : '⌃'}</button><button aria-label="Згорнути панель" onClick={onToggle} title="Згорнути панель" type="button">›</button></span>
+        <span className="feed-title-actions"><em>{selected ? 'ПРИВ’ЯЗАНО' : 'НЕ ОБРАНО'}</em><button aria-label="Згорнути панель" onClick={onToggle} title="Згорнути панель" type="button">›</button></span>
       </div>
-      {!detailsCollapsed && <div className="plan-details">
+      <div className="plan-details">
         {selected ? <>
           <div className={`object-icon ${selected.type === 'device' ? 'blue' : selected.type === 'input' ? 'yellow' : 'green'}`}>{objectIcon(selected.type)}</div>
           <h2>{selected.name}</h2>
           <p>{selected.floor} · прив’язаний до локального електронного шару</p>
-          <dl>
-            <div><dt>Тип</dt><dd>{objectType(selected.type)}</dd></div>
-            <div><dt>U‑PROX токен</dt><dd>{selected.token || '—'}</dd></div>
-            {selected.detail && <div><dt>Деталі</dt><dd>{selected.detail}</dd></div>}
-            <div><dt>Live-стан</dt><dd>{liveState}</dd></div>
-          </dl>
-          <div className="plan-last-event">
-            <span>Остання подія цієї точки</span>
-            {selectedLastEvent ? <><b>{selectedLastEvent.name}</b><time>{selectedLastEvent.occurredAt}</time></> : <p>За останні 24 години подію для цього токена не знайдено.</p>}
-          </div>
-          {controllerToken && <div className="plan-live-telemetry">
-            <div><span>Входи</span><b>{controllerQuery.data?.inputs.length ?? '—'}</b></div>
-            <div><span>Виходи</span><b>{controllerQuery.data?.outputs.length ?? '—'}</b></div>
-            <div><span>HardwareState</span><b>{controller?.hardwareState ?? '—'}</b></div>
-            <div><span>HealthStatus</span><b>{controller?.healthStatus ?? '—'}</b></div>
+          <button aria-expanded={!detailsCollapsed} aria-label={detailsCollapsed ? 'Розгорнути технічні деталі' : 'Згорнути технічні деталі'} className="plan-details-toggle" onClick={() => setDetailsCollapsed((current) => !current)} title={detailsCollapsed ? 'Розгорнути технічні деталі' : 'Згорнути технічні деталі'} type="button"><span>Технічні деталі</span><b>{detailsCollapsed ? '⌄' : '⌃'}</b></button>
+          {!detailsCollapsed && <div className="plan-details-extra">
+            <dl>
+              <div><dt>Тип</dt><dd>{objectType(selected.type)}</dd></div>
+              <div><dt>U‑PROX токен</dt><dd>{selected.token || '—'}</dd></div>
+              {selected.detail && <div><dt>Деталі</dt><dd>{selected.detail}</dd></div>}
+              <div><dt>Live-стан</dt><dd>{liveState}</dd></div>
+            </dl>
+            <div className="plan-last-event">
+              <span>Остання подія цієї точки</span>
+              {selectedLastEvent ? <><b>{selectedLastEvent.name}</b><time>{selectedLastEvent.occurredAt}</time></> : <p>За останні 24 години подію для цього токена не знайдено.</p>}
+            </div>
+            {controllerToken && <div className="plan-live-telemetry">
+              <div><span>Входи</span><b>{controllerQuery.data?.inputs.length ?? '—'}</b></div>
+              <div><span>Виходи</span><b>{controllerQuery.data?.outputs.length ?? '—'}</b></div>
+              <div><span>HardwareState</span><b>{controller?.hardwareState ?? '—'}</b></div>
+              <div><span>HealthStatus</span><b>{controller?.healthStatus ?? '—'}</b></div>
+            </div>}
+            <p className="plan-details-note">Дані DeviceInputGetList і DeviceOutputGetList, оновлення кожні 10 секунд. Числові коди не інтерпретуються без таблиці значень вашої версії U‑PROX.</p>
           </div>}
-          <p className="plan-details-note">Дані DeviceInputGetList і DeviceOutputGetList, оновлення кожні 10 секунд. Числові коди не інтерпретуються без таблиці значень вашої версії U‑PROX.</p>
         </> : <div className="plan-details-empty">Клацни по збереженому маркеру на плані, щоб побачити його реальний токен і дані U‑PROX.</div>}
       </div>
-      }
       <div className="feed-title feed-title-events">
         <b>{selected ? `Події: ${selected.name}` : 'Останні події U‑PROX'}</b>
         <em>{eventsQuery.isError ? 'ПОМИЛКА' : 'LIVE'}</em>

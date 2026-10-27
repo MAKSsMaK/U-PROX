@@ -561,11 +561,30 @@ select {
   font-size: 17px;
 }
 .plan-details > p {
-  margin: 0 0 16px;
+  margin: 0 0 12px;
   color: #92acc3;
   font-size: 11px;
   line-height: 1.55;
 }
+.plan-details-toggle {
+  display: flex;
+  width: calc(100% + 38px);
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 -19px;
+  border: 0;
+  border-top: 1px solid #22324a;
+  border-bottom: 1px solid #1b3046;
+  padding: 9px 19px;
+  background: #0a1828;
+  color: #8bb4ce;
+  cursor: pointer;
+  font: 700 10px Manrope;
+  text-align: left;
+}
+.plan-details-toggle:hover { background: #10263a; color: #dff5ff; }
+.plan-details-toggle b { color: #65caff; font: 800 17px/1 Manrope; }
+.plan-details-extra { padding-top: 12px; }
 .plan-details-close {
   position: absolute;
   top: 13px;
