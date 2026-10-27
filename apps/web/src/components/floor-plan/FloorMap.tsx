@@ -4,9 +4,9 @@ import { getEvents, getPlanElements } from '../../api';
 import { useStore } from '../../store';
 import { planElementIcon, type PlanElement } from '../../features/plans/planElements';
 import { getFloorPlan } from '../../features/plans/floorPlans';
-import { eventMatchesObject, toEventTableRows, type EventTableRow } from '../../features/events/eventTable';
+import { eventMatchesObject, getEventSeverity, toEventTableRows, type EventTableRow } from '../../features/events/eventTable';
 
-type MapEventState = 'opened' | 'closed' | 'alert' | 'activity';
+type MapEventState = 'opened' | 'closed' | 'alert' | 'warning' | 'activity';
 
 function ScrollingPlanLabel({ element }: { element: PlanElement }) {
   const labelRef = useRef<HTMLSpanElement>(null);
@@ -45,9 +45,11 @@ function ScrollingPlanLabel({ element }: { element: PlanElement }) {
 
 function eventState(eventName: string): MapEventState {
   const name = eventName.toLocaleLowerCase('uk-UA');
+  const severity = getEventSeverity(eventName);
+  if (severity === 'critical') return 'alert';
+  if (severity === 'warning') return 'warning';
   if (name.includes('відчинен') || name.includes('відкрит')) return 'opened';
   if (name.includes('зачинен') || name.includes('закрит') || name.includes('заблок')) return 'closed';
-  if (name.includes('відмов') || name.includes('заборон') || name.includes('тривог') || name.includes('обрив') || name.includes('несправ') || name.includes('зв’язок втрач')) return 'alert';
   return 'activity';
 }
 

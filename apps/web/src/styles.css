@@ -337,6 +337,7 @@ select {
 .marker.event-closed,
 .marker.event-activity { box-shadow: 0 0 0 3px #061523, 0 0 15px currentColor; }
 .marker.event-alert { color: #ff646f; box-shadow: 0 0 0 4px #061523, 0 0 22px #ff646f; }
+.marker.event-warning { color: #ffd05e; box-shadow: 0 0 0 4px #061523, 0 0 20px #ffd05e; }
 .marker-event-indicator {
   position: absolute;
   right: -3px;
@@ -785,11 +786,19 @@ article i {
   background: #45d68a;
   margin-top: 4px;
 }
-article.denied i {
+article.event-critical i {
   background: #ff5e67;
 }
-article.warn i {
+article.event-warning i {
   background: #f8bd4a;
+}
+article.event-critical b,
+.event-name--critical {
+  color: #ff747c;
+}
+article.event-warning b,
+.event-name--warning {
+  color: #ffd06b;
 }
 article time {
   float: right;

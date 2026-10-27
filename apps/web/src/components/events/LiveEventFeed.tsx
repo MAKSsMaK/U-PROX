@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getEvents, getPlanLiveController } from '../../api';
-import { eventMatchesObject, toEventTableRows } from '../../features/events/eventTable';
+import { eventMatchesObject, getEventSeverity, toEventTableRows } from '../../features/events/eventTable';
 import { useStore } from '../../store';
 
 function objectType(type?: 'door' | 'device' | 'input') {
@@ -14,13 +14,6 @@ function objectIcon(type?: 'door' | 'device' | 'input') {
   if (type === 'device') return '▣';
   if (type === 'input') return '◉';
   return '▯';
-}
-
-function eventSeverity(name: string) {
-  const value = name.toLowerCase();
-  if (value.includes('відмов') || value.includes('заборон')) return 'denied';
-  if (value.includes('заблок') || value.includes('помил')) return 'warn';
-  return 'green';
 }
 
 type LiveEventFeedProps = {
@@ -106,7 +99,7 @@ export function LiveEventFeed({ collapsed, onToggle }: LiveEventFeedProps) {
         {eventsQuery.isError && <p className="feed-empty feed-error">Не вдалося отримати події.</p>}
         {!eventsQuery.isLoading && !eventsQuery.isError && events.length === 0 && <p className="feed-empty">{selected ? 'Для вибраного об’єкта подій за останні 24 години не знайдено.' : 'U‑PROX не повернув подій за останні 24 години.'}</p>}
         {!eventsQuery.isError && events.map((event) => (
-          <article className={eventSeverity(event.eventName)} key={event.id}>
+          <article className={`event-${getEventSeverity(event.eventName)}`} key={event.id}>
             <i />
             <div>
               <b>{event.eventName}</b>

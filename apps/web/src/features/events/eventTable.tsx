@@ -39,6 +39,32 @@ export type EventTableRow = {
   position: string;
 };
 
+export type EventSeverity = 'normal' | 'warning' | 'critical';
+
+/**
+ * U-PROX returns the displayed event text, rather than a common severity field.
+ * Keep the classification in one place so the journal and live-plan feed use the
+ * same visual signal.
+ */
+export function getEventSeverity(eventName: string): EventSeverity {
+  const value = eventName.toLocaleLowerCase('uk-UA');
+  if ([
+    'відмов',
+    'заборон',
+    'невідом',
+    'заблок',
+    'тривог',
+    'авар',
+    'несправ',
+    'обрив',
+    'зв’язок втрач',
+    "зв'язок втрач",
+    'помил',
+  ].some((term) => value.includes(term))) return 'critical';
+  if (['поперед', 'відчинен', 'відкрит', 'примус', 'tamper'].some((term) => value.includes(term))) return 'warning';
+  return 'normal';
+}
+
 type EventObject = { token?: string; name: string };
 
 function normalizedWords(value: string) {
@@ -135,7 +161,7 @@ export const eventTableColumns: DataTableColumn<EventTableRow>[] = [
   {
     id: 'eventName',
     header: 'Подія',
-    cell: (row) => <span className="event-name">{row.eventName}</span>,
+    cell: (row) => <span className={`event-name event-name--${getEventSeverity(row.eventName)}`}>{row.eventName}</span>,
   },
   { id: 'cardCode', header: 'Ідентифікатор', cell: (row) => row.cardCode },
   { id: 'position', header: 'Посада', cell: (row) => row.position },
