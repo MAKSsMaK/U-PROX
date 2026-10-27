@@ -46,6 +46,7 @@ let employeeDirectory: EmployeeDirectory | undefined;
 type CachedImage = { content: Buffer; contentType: string; expiresAt: number };
 const images = new Map<string, CachedImage>();
 const LIVE_CACHE_MS = 5_000;
+const UPROX_EVENT_PAGE_SIZE = 200;
 type TimedCache = { value: unknown; expiresAt: number; pending?: Promise<unknown> };
 const liveControllerCache = new Map<string, TimedCache>();
 type UproxxEmployee = {
@@ -478,7 +479,7 @@ app.get('/api/plan/live/:token', async (request, reply) => {
   return getLiveController(parsed.data.token);
 });
 const eventsQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  limit: z.coerce.number().int().min(1).max(10_000).default(50),
   hours: z.coerce.number().int().min(1).max(168).default(24),
 });
 
@@ -486,9 +487,17 @@ function issuedMilliseconds(value: unknown) {
   return Number(typeof value === 'string' ? (value.match(/\d+/)?.[0] ?? 0) : 0);
 }
 
-type EventsSnapshot = Record<string, unknown> & { Event: Array<Record<string, unknown>> };
-let eventsSnapshot: { value: EventsSnapshot; refreshedAt: number } | undefined;
-let eventsRefreshPending: Promise<EventsSnapshot> | undefined;
+type EventRecord = Record<string, unknown>;
+type EventsSnapshot = Record<string, unknown> & { Event: EventRecord[]; NextToken?: string | number };
+type EventRange = { events: EventRecord[]; refreshedAt: number; expiresAt: number; pending?: Promise<EventRecord[]> };
+const eventRangeCache = new Map<string, EventRange>();
+
+function eventKey(event: EventRecord) {
+  if (event.Token !== undefined && event.Token !== null) return `token:${event.Token}`;
+  const sender = event.Sender as { Token?: string | number } | undefined;
+  const message = event.Message as { Code?: string | number; Name?: string } | undefined;
+  return `fallback:${event.Issued ?? ''}:${sender?.Token ?? ''}:${message?.Code ?? message?.Name ?? ''}:${event.CardCode ?? ''}`;
+}
 
 async function getEmployeeDirectory() {
   if (employeeDirectory && employeeDirectory.expiresAt > Date.now()) {
@@ -517,38 +526,87 @@ async function getEmployeeDirectory() {
   }
 }
 
-async function refreshEventsSnapshot() {
-  if (eventsRefreshPending) return eventsRefreshPending;
-  eventsRefreshPending = (async () => {
-    // One shared request serves every open admin screen. Negative Limit returns newest first.
-    const response = (await uproxx('EventGetList', {
-      Limit: -200,
-      StartToken: 0,
-    })) as Record<string, unknown> & { Event?: Array<Record<string, unknown>> };
-    const employeesByToken = new Map(
-      ((await getEmployeeDirectory()) as UproxxEmployee[]).flatMap((employee) =>
-        employee.Token === undefined ? [] : [[String(employee.Token), employee] as const],
-      ),
-    );
-    const events = (response.Event ?? []).map((event) => {
-      const user = event.User as { Token?: string | number } | undefined;
-      const employee = user?.Token === undefined ? undefined : employeesByToken.get(String(user.Token));
-      return employee ? { ...event, Employee: employee } : event;
-    });
-    const value = { ...response, Event: events };
-    eventsSnapshot = { value, refreshedAt: Date.now() };
-    return value;
-  })();
-  try {
-    return await eventsRefreshPending;
-  } finally {
-    eventsRefreshPending = undefined;
-  }
+async function enrichEvents(events: EventRecord[]) {
+  const employeesByToken = new Map(
+    ((await getEmployeeDirectory()) as UproxxEmployee[]).flatMap((employee) =>
+      employee.Token === undefined ? [] : [[String(employee.Token), employee] as const],
+    ),
+  );
+  return events.map((event) => {
+    const user = event.User as { Token?: string | number } | undefined;
+    const employee = user?.Token === undefined ? undefined : employeesByToken.get(String(user.Token));
+    return employee ? { ...event, Employee: employee } : event;
+  });
 }
 
-async function getEventsSnapshot() {
-  if (eventsSnapshot) return eventsSnapshot.value;
-  return refreshEventsSnapshot();
+function nextEventToken(response: EventsSnapshot) {
+  const token = response.NextToken;
+  return token === undefined || token === null || token === '' || token === 0 || token === '0'
+    ? undefined
+    : String(token);
+}
+
+/**
+ * Reads the selected period directly from U-PROX in pages. Nothing from the
+ * journal is written to our disk; the brief cache below only coalesces equal
+ * requests from open screens during a few seconds.
+ */
+async function fetchEventsFromUproxx(hours: number, limit: number) {
+  const cutoff = Date.now() - hours * 60 * 60_000;
+  let startToken = '0';
+  const seenTokens = new Set<string>();
+  const collected = new Map<string, EventRecord>();
+  let pages = 0;
+  while (pages < 500 && !seenTokens.has(startToken)) {
+    seenTokens.add(startToken);
+    const response = (await uproxx('EventGetList', {
+      Limit: -UPROX_EVENT_PAGE_SIZE,
+      StartToken: Number(startToken),
+    })) as Record<string, unknown> & { Event?: EventRecord[]; NextToken?: string | number };
+    const events = await enrichEvents(response.Event ?? []);
+    if (!events.length) break;
+    events.forEach((event) => collected.set(eventKey(event), event));
+    pages += 1;
+    const oldest = Math.min(...events.map((event) => issuedMilliseconds(event.Issued)).filter(Boolean));
+    const nextToken = nextEventToken(response as EventsSnapshot);
+    if (!nextToken || oldest <= cutoff || collected.size >= limit) break;
+    startToken = nextToken;
+  }
+  const events = [...collected.values()]
+    .filter((event) => issuedMilliseconds(event.Issued) >= cutoff)
+    .sort((left, right) => issuedMilliseconds(right.Issued) - issuedMilliseconds(left.Issued))
+    .slice(0, limit);
+  app.log.debug({ hours, limit, pages, events: events.length }, 'U-PROX event range loaded');
+  return events;
+}
+
+async function getEventsRange(hours: number, limit: number) {
+  const key = `${hours}:${limit}`;
+  const existing = eventRangeCache.get(key);
+  if (existing?.expiresAt && existing.expiresAt > Date.now()) return existing;
+  if (existing?.pending) {
+    const events = await existing.pending;
+    return { events, refreshedAt: existing.refreshedAt, expiresAt: existing.expiresAt };
+  }
+  const range: EventRange = { events: existing?.events ?? [], refreshedAt: existing?.refreshedAt ?? 0, expiresAt: 0 };
+  range.pending = fetchEventsFromUproxx(hours, limit);
+  eventRangeCache.set(key, range);
+  try {
+    const events = await range.pending;
+    range.events = events;
+    range.refreshedAt = Date.now();
+    range.expiresAt = range.refreshedAt + LIVE_CACHE_MS;
+    range.pending = undefined;
+    if (eventRangeCache.size > 12) {
+      for (const [cacheKey, value] of eventRangeCache) {
+        if (value.expiresAt <= Date.now()) eventRangeCache.delete(cacheKey);
+      }
+    }
+    return range;
+  } catch (error) {
+    eventRangeCache.delete(key);
+    throw error;
+  }
 }
 
 function imageContentType(content: Buffer) {
@@ -589,12 +647,11 @@ async function getImage(imageToken: string) {
 
 app.get('/api/events', async (request) => {
   const { limit, hours } = eventsQuery.parse(request.query);
-  const response = await getEventsSnapshot();
-  const fromMilliseconds = Date.now() - hours * 60 * 60_000;
-  const events = (response.Event ?? [])
-    .filter((event) => issuedMilliseconds(event.Issued) >= fromMilliseconds)
-    .slice(0, limit);
-  return { ...response, Event: events, refreshedAt: eventsSnapshot?.refreshedAt ?? Date.now() };
+  const range = await getEventsRange(hours, limit);
+  return {
+    Event: range.events,
+    refreshedAt: range.refreshedAt,
+  };
 });
 
 app.get('/api/images/:token', async (request, reply) => {
@@ -681,16 +738,5 @@ app.setErrorHandler((err, _req, reply) => {
   app.log.error({ err }, 'request failed');
   reply.code(502).send({ error: 'U-PROX integration request failed' });
 });
-
-void refreshEventsSnapshot().catch((error) => {
-  app.log.warn({ error }, 'Initial U-PROX event refresh failed');
-});
-
-const eventsRefreshTimer = setInterval(() => {
-  void refreshEventsSnapshot().catch((error) => {
-    app.log.warn({ error }, 'Scheduled U-PROX event refresh failed');
-  });
-}, LIVE_CACHE_MS);
-eventsRefreshTimer.unref();
 
 await app.listen({ port: env.PORT, host: '0.0.0.0' });

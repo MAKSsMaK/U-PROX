@@ -6,6 +6,7 @@ import { DataTable } from '../components/tables/DataTable';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 
 type ReportKind = 'access' | 'security' | 'worktime';
+const REPORT_PAGE_SIZE = 100;
 
 const reportCards: Array<{ kind: ReportKind; icon: string; title: string; description: string }> = [
   { kind: 'access', icon: '◷', title: 'Журнал проходів', description: 'Входи, виходи, дозволи та відмови за вибраний період.' },
@@ -25,12 +26,17 @@ function csvEscape(value: string) {
 export function ReportsPage() {
   const [kind, setKind] = useState<ReportKind>('access');
   const [hours, setHours] = useState(24);
+  const [page, setPage] = useState(1);
   const eventsQuery = useQuery({
     queryKey: ['reports-events', hours],
-    queryFn: () => getEvents({ hours, limit: 200 }),
+    queryFn: () => getEvents({ hours, limit: 10_000 }),
+    refetchInterval: 60_000,
   });
   const rows = useMemo(() => toEventTableRows(eventsQuery.data), [eventsQuery.data]);
   const reportRows = useMemo(() => kind === 'security' ? rows.filter((row) => isSecurityEvent(row.eventName)) : rows, [kind, rows]);
+  const pageCount = Math.max(1, Math.ceil(reportRows.length / REPORT_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const visibleRows = reportRows.slice((safePage - 1) * REPORT_PAGE_SIZE, safePage * REPORT_PAGE_SIZE);
   const peopleCount = new Set(reportRows.filter((row) => row.employee !== 'Системна подія' && row.employee !== 'Невідома картка').map((row) => row.employee)).size;
   const deniedCount = reportRows.filter((row) => isSecurityEvent(row.eventName)).length;
   const activeReport = reportCards.find((item) => item.kind === kind)!;
@@ -57,15 +63,18 @@ export function ReportsPage() {
         </div>
       </header>
       <section className="report-cards" aria-label="Тип звіту">
-        {reportCards.map((item) => <button className={kind === item.kind ? 'report-card active' : 'report-card'} key={item.kind} onClick={() => setKind(item.kind)} type="button">
+        {reportCards.map((item) => <button className={kind === item.kind ? 'report-card active' : 'report-card'} key={item.kind} onClick={() => { setKind(item.kind); setPage(1); }} type="button">
           <i>{item.icon}</i><span><b>{item.title}</b><small>{item.description}</small></span>
         </button>)}
       </section>
       <section className="report-panel">
         <div className="report-toolbar">
           <div><h2>{activeReport.title}</h2><p>{activeReport.description}</p></div>
-          <label>Період<select onChange={(event) => setHours(Number(event.target.value))} value={hours}><option value={24}>Останні 24 години</option><option value={72}>Останні 3 дні</option><option value={168}>Останні 7 днів</option></select></label>
-          <button className="report-export" disabled={!reportRows.length} onClick={exportReport} type="button">Завантажити CSV</button>
+          <label>Період<select onChange={(event) => { setHours(Number(event.target.value)); setPage(1); }} value={hours}><option value={24}>Останні 24 години</option><option value={72}>Останні 3 дні</option><option value={168}>Останні 7 днів</option></select></label>
+          <div className="report-actions">
+            <button className="report-refresh" disabled={eventsQuery.isFetching} onClick={() => void eventsQuery.refetch()} type="button">{eventsQuery.isFetching ? 'Оновлення…' : 'Оновити зараз'}</button>
+            <button className="report-export" disabled={!reportRows.length || eventsQuery.isFetching} onClick={exportReport} type="button">Завантажити CSV</button>
+          </div>
         </div>
         <div className="report-summary">
           <div><span>Подій у вибірці</span><b>{reportRows.length}</b></div>
@@ -73,7 +82,14 @@ export function ReportsPage() {
           <div><span>{kind === 'security' ? 'Подій ризику' : 'Відмов / тривог'}</span><b>{deniedCount}</b></div>
           {kind === 'worktime' && <p>Це попередній підсумок за проходами. Повний табель із запізненнями й понаднормовими потребує графіків U‑PROX.</p>}
         </div>
-        {eventsQuery.isError ? <p className="reports-error">Не вдалося отримати події: {eventsQuery.error.message}</p> : <DataTable columns={eventTableColumns} emptyMessage="За вибраний період даних немає." getRowId={(row) => row.id} isLoading={eventsQuery.isLoading} rows={reportRows} />}
+        {eventsQuery.isError ? <p className="reports-error">Не вдалося отримати події: {eventsQuery.error.message}</p> : <>
+          <DataTable columns={eventTableColumns} emptyMessage="За вибраний період даних немає." getRowId={(row) => row.id} isLoading={eventsQuery.isLoading} rows={visibleRows} />
+          {reportRows.length > REPORT_PAGE_SIZE && <nav aria-label="Сторінки звіту" className="report-pagination">
+            <button disabled={safePage === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} type="button">← Попередня</button>
+            <span>Сторінка {safePage} з {pageCount} · показано {visibleRows.length} із {reportRows.length}</span>
+            <button disabled={safePage === pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} type="button">Наступна →</button>
+          </nav>}
+        </>}
       </section>
     </main>
   </DashboardLayout>;
