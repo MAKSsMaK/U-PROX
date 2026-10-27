@@ -22,7 +22,12 @@ function eventSeverity(name: string) {
   return 'green';
 }
 
-export function LiveEventFeed() {
+type LiveEventFeedProps = {
+  collapsed: boolean;
+  onToggle: () => void;
+};
+
+export function LiveEventFeed({ collapsed, onToggle }: LiveEventFeedProps) {
   const selected = useStore((state) => state.selected);
   const eventsQuery = useQuery({
     queryKey: ['plan-events', 24, 100],
@@ -57,10 +62,11 @@ export function LiveEventFeed() {
           ? 'Не в мережі'
           : 'Стан не повернувся';
   return (
-    <section className="feed">
+    <section className={`feed ${collapsed ? 'feed--collapsed' : ''}`}>
+      {collapsed ? <button aria-label="Розгорнути панель даних та подій" className="feed-collapse-toggle" onClick={onToggle} title="Розгорнути дані та події" type="button">‹</button> : <>
       <div className="feed-title">
         <b>Об’єкт на плані</b>
-        <em>{selected ? 'ПРИВ’ЯЗАНО' : 'НЕ ОБРАНО'}</em>
+        <span className="feed-title-actions"><em>{selected ? 'ПРИВ’ЯЗАНО' : 'НЕ ОБРАНО'}</em><button aria-label="Згорнути панель" onClick={onToggle} title="Згорнути панель" type="button">›</button></span>
       </div>
       <div className="plan-details">
         {selected ? <>
@@ -105,6 +111,7 @@ export function LiveEventFeed() {
           </article>
         ))}
       </div>
+      </>}
     </section>
   );
 }

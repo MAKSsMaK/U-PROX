@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { FloorMap } from '../components/floor-plan/FloorMap';
 import { PlanStatusBar } from '../components/floor-plan/PlanStatusBar';
 import { LiveEventFeed } from '../components/events/LiveEventFeed';
-import { IntegrationTestDialog } from '../components/integration/IntegrationTestDialog';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { useStore } from '../store';
 import { floorOptions } from '../features/plans/floorPlans';
@@ -13,9 +12,9 @@ export function LivePlanPage() {
   const floor = useStore((state) => state.floor);
   const setBuilding = useStore((state) => state.setBuilding);
   const setFloor = useStore((state) => state.setFloor);
-  const [testing, setTesting] = useState(false);
+  const [panelExpanded, setPanelExpanded] = useState(false);
   return (
-    <DashboardLayout variant="plan">
+    <DashboardLayout planPanelCollapsed={!panelExpanded} variant="plan">
       <main>
         <header>
           <div>
@@ -40,11 +39,7 @@ export function LivePlanPage() {
         <FloorMap />
         <PlanStatusBar />
       </main>
-      <LiveEventFeed />
-      <button className="api-test" onClick={() => setTesting(true)}>
-        API ТЕСТ
-      </button>
-      {testing && <IntegrationTestDialog onClose={() => setTesting(false)} />}
+      <LiveEventFeed collapsed={!panelExpanded} onToggle={() => setPanelExpanded((current) => !current)} />
     </DashboardLayout>
   );
 }

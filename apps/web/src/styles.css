@@ -22,6 +22,9 @@ body {
   height: 100dvh;
   grid-template-columns: 246px minmax(0, 1fr) 330px;
 }
+.app--plan.app--plan-panel-collapsed {
+  grid-template-columns: 246px minmax(0, 1fr) 42px;
+}
 .app--editor {
   display: block;
   height: 100dvh;
@@ -494,6 +497,15 @@ select {
   min-height: 0;
   overflow: hidden;
 }
+.feed--collapsed { align-items: stretch; }
+.feed-collapse-toggle, .feed-title-actions button {
+  border: 0;
+  background: transparent;
+  color: #8ec9eb;
+  cursor: pointer;
+}
+.feed--collapsed .feed-collapse-toggle { width: 100%; height: 100%; font: 700 26px/1 Manrope; }
+.feed--collapsed .feed-collapse-toggle:hover { background: #10243b; color: #e7f7ff; }
 .feed-title {
   padding: 23px 19px 16px;
   border-bottom: 1px solid #22324a;
@@ -513,6 +525,8 @@ select {
   padding: 5px 7px;
   font-style: normal;
 }
+.feed-title-actions { display: flex; align-items: center; gap: 7px; }
+.feed-title-actions button { padding: 0 0 0 2px; font: 700 22px/1 Manrope; }
 .feed-title-events {
   padding: 16px 19px 12px;
   border-top: 1px solid #22324a;
