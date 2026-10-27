@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getEvents, getPlanLiveController } from '../../api';
 import { eventMatchesObject, toEventTableRows } from '../../features/events/eventTable';
@@ -29,6 +30,7 @@ type LiveEventFeedProps = {
 
 export function LiveEventFeed({ collapsed, onToggle }: LiveEventFeedProps) {
   const selected = useStore((state) => state.selected);
+  const [detailsCollapsed, setDetailsCollapsed] = useState(true);
   const eventsQuery = useQuery({
     queryKey: ['plan-events', 24, 100],
     queryFn: () => getEvents({ hours: 24, limit: 100 }),
@@ -66,9 +68,9 @@ export function LiveEventFeed({ collapsed, onToggle }: LiveEventFeedProps) {
       {collapsed ? <button aria-label="Розгорнути панель даних та подій" className="feed-collapse-toggle" onClick={onToggle} title="Розгорнути дані та події" type="button">‹</button> : <>
       <div className="feed-title">
         <b>Об’єкт на плані</b>
-        <span className="feed-title-actions"><em>{selected ? 'ПРИВ’ЯЗАНО' : 'НЕ ОБРАНО'}</em><button aria-label="Згорнути панель" onClick={onToggle} title="Згорнути панель" type="button">›</button></span>
+        <span className="feed-title-actions"><em>{selected ? 'ПРИВ’ЯЗАНО' : 'НЕ ОБРАНО'}</em><button aria-expanded={!detailsCollapsed} aria-label={detailsCollapsed ? 'Розгорнути деталі об’єкта' : 'Згорнути деталі об’єкта'} className="feed-details-toggle" onClick={() => setDetailsCollapsed((current) => !current)} title={detailsCollapsed ? 'Розгорнути деталі' : 'Згорнути деталі'} type="button">{detailsCollapsed ? '⌄' : '⌃'}</button><button aria-label="Згорнути панель" onClick={onToggle} title="Згорнути панель" type="button">›</button></span>
       </div>
-      <div className="plan-details">
+      {!detailsCollapsed && <div className="plan-details">
         {selected ? <>
           <div className={`object-icon ${selected.type === 'device' ? 'blue' : selected.type === 'input' ? 'yellow' : 'green'}`}>{objectIcon(selected.type)}</div>
           <h2>{selected.name}</h2>
@@ -92,6 +94,7 @@ export function LiveEventFeed({ collapsed, onToggle }: LiveEventFeedProps) {
           <p className="plan-details-note">Дані DeviceInputGetList і DeviceOutputGetList, оновлення кожні 10 секунд. Числові коди не інтерпретуються без таблиці значень вашої версії U‑PROX.</p>
         </> : <div className="plan-details-empty">Клацни по збереженому маркеру на плані, щоб побачити його реальний токен і дані U‑PROX.</div>}
       </div>
+      }
       <div className="feed-title feed-title-events">
         <b>{selected ? `Події: ${selected.name}` : 'Останні події U‑PROX'}</b>
         <em>{eventsQuery.isError ? 'ПОМИЛКА' : 'LIVE'}</em>
