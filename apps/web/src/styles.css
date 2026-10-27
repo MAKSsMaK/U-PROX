@@ -793,11 +793,11 @@ article.event-warning i {
   background: #f8bd4a;
 }
 article.event-critical b,
-.event-name--critical {
+.event-name.event-name--critical {
   color: #ff747c;
 }
 article.event-warning b,
-.event-name--warning {
+.event-name.event-name--warning {
   color: #ffd06b;
 }
 article time {
