@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FloorMap } from '../components/floor-plan/FloorMap';
 import { PlanStatusBar } from '../components/floor-plan/PlanStatusBar';
@@ -12,7 +12,14 @@ export function LivePlanPage() {
   const floor = useStore((state) => state.floor);
   const setBuilding = useStore((state) => state.setBuilding);
   const setFloor = useStore((state) => state.setFloor);
+  const selected = useStore((state) => state.selected);
   const [panelExpanded, setPanelExpanded] = useState(false);
+
+  // Selecting any plan marker is an explicit request to inspect its data.
+  useEffect(() => {
+    if (selected) setPanelExpanded(true);
+  }, [selected]);
+
   return (
     <DashboardLayout planPanelCollapsed={!panelExpanded} variant="plan">
       <main>
