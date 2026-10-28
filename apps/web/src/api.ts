@@ -17,6 +17,28 @@ export async function getEvents({ hours = 24, limit = 50, from, to }: { hours?: 
   return response.json();
 }
 
+export type ReportExportRequest = {
+  format: 'pdf' | 'word';
+  kind: 'access' | 'security' | 'worktime';
+  from: number;
+  to: number;
+  employeeTokens: string[];
+  departments: string[];
+  accessPoint: string;
+};
+
+export async function downloadServerReport(input: ReportExportRequest) {
+  const response = await fetch('/api/reports/export', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
+  const disposition = response.headers.get('content-disposition') ?? '';
+  const fileName = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? `zvit.${input.format === 'pdf' ? 'pdf' : 'doc'}`;
+  return { blob: await response.blob(), fileName };
+}
+
 export type HealthResponse = { ok: boolean; mode: 'mock' | 'uproxx' };
 
 export type PlanCatalogItem = {

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { getEvents, getPersonnel, getPlanCatalog, type PersonnelRecord } from '../api';
-import { toEventTableRows } from '../features/events/eventTable';
+import { downloadServerReport, getPersonnel, getPlanCatalog, type PersonnelRecord } from '../api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 
 type ReportKind = 'access' | 'security' | 'worktime';
@@ -17,15 +16,6 @@ const reportCards: Array<{ kind: ReportKind; icon: string; title: string; descri
   { kind: 'worktime', icon: '◴', title: 'Робочий час', description: 'Підсумок присутності на основі подій доступу.' },
 ];
 
-function isSecurityEvent(eventName: string) {
-  const name = eventName.toLocaleLowerCase('uk-UA');
-  return ['відмов', 'заборон', 'тривог', 'помил', 'заблок'].some((word) => name.includes(word));
-}
-
-function escapeHtml(value: string) {
-  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
-}
-
 function dateTimeInputValue(date: Date) {
   const offset = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
@@ -34,10 +24,6 @@ function dateTimeInputValue(date: Date) {
 function rangeForHours(hours: number): ReportDateRange {
   const to = new Date();
   return { from: dateTimeInputValue(new Date(to.getTime() - hours * 60 * 60_000)), to: dateTimeInputValue(to) };
-}
-
-function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '—';
 }
 
 type CompactOption = { value: string; label: string };
@@ -182,33 +168,21 @@ export function ReportsPage() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<ReportExportFormat>('pdf');
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
   const [quickPeriod, setQuickPeriod] = useState('');
   const personnelQuery = useQuery({ queryKey: ['personnel'], queryFn: getPersonnel, staleTime: 30_000, enabled: reportModalOpen || exportModalOpen });
   const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: getPlanCatalog, staleTime: 60_000, enabled: reportModalOpen });
-  const eventsQuery = useQuery({
-    queryKey: ['reports-events', range.from, range.to],
-    queryFn: () => getEvents({ from: new Date(range.from).getTime(), to: new Date(range.to).getTime(), limit: 10_000 }),
-    refetchInterval: 60_000,
-    enabled: exportModalOpen,
-  });
-  const rows = useMemo(() => toEventTableRows(eventsQuery.data), [eventsQuery.data]);
-  const reportRows = useMemo(() => rows.filter((row) => {
-    if (kind === 'security' && !isSecurityEvent(row.eventName)) return false;
-    if (filters.employeeTokens.length > 0 && (!row.employeeToken || !filters.employeeTokens.includes(row.employeeToken))) return false;
-    if (filters.departments.length > 0 && !filters.departments.includes(row.department)) return false;
-    if (filters.accessPoint && row.accessPoint !== filters.accessPoint) return false;
-    return true;
-  }), [filters, kind, rows]);
   const activeReport = reportCards.find((item) => item.kind === kind)!;
   const personnel = personnelQuery.data?.personnel ?? [];
   const departments = personnelQuery.data?.departments ?? [];
   const invalidDraftRange = !draftRange.from || !draftRange.to || new Date(draftRange.from).getTime() > new Date(draftRange.to).getTime();
   const accessPoints = useMemo(() => {
     const catalogItems = catalogQuery.data ? [...catalogQuery.data.doors, ...catalogQuery.data.devices, ...catalogQuery.data.inputs] : [];
-    const names = new Set([...catalogItems.map((item) => item.name), ...rows.map((row) => row.accessPoint)]);
+    const names = new Set(catalogItems.map((item) => item.name));
     if (draftFilters.accessPoint) names.add(draftFilters.accessPoint);
     return [...names].filter((item) => item && item !== '—').sort((left, right) => left.localeCompare(right, 'uk-UA'));
-  }, [catalogQuery.data, draftFilters.accessPoint, rows]);
+  }, [catalogQuery.data, draftFilters.accessPoint]);
   const openReportModal = () => {
     setDraftKind(kind);
     setDraftRange(range);
@@ -232,44 +206,36 @@ export function ReportsPage() {
     setDraftRange(rangeForHours(24));
     setDraftFilters(nextFilters);
     setQuickPeriod('');
+    setExportError('');
     setReportModalOpen(true);
     setSearchParams({}, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  const reportFileName = `${activeReport.title.toLocaleLowerCase('uk-UA').replaceAll(' ', '-')}-${new Date().toISOString().slice(0, 10)}`;
-  const periodLabel = `${new Date(range.from).toLocaleString('uk-UA')} — ${new Date(range.to).toLocaleString('uk-UA')}`;
-  const createReportDocument = () => {
-    const selectedFilters = [
-      filters.employeeTokens.length > 0 && `Працівники: ${personnel.filter((person) => filters.employeeTokens.includes(person.token)).map((person) => person.name).join(', ')}`,
-      filters.departments.length > 0 && `Відділи: ${filters.departments.join(', ')}`,
-      filters.accessPoint && `Місце: ${filters.accessPoint}`,
-    ].filter(Boolean).join(' · ') || 'Без додаткових фільтрів';
-    const tableRows = reportRows.map((row) => {
-      const photo = row.photoToken
-        ? `<img alt="${escapeHtml(row.employee)}" class="photo" src="${escapeHtml(new URL(`/api/images/${encodeURIComponent(row.photoToken)}`, window.location.origin).toString())}">`
-        : `<span class="photo fallback">${escapeHtml(initials(row.employee))}</span>`;
-      return `<tr><td>${escapeHtml(row.occurredAt)}</td><td>${photo}</td><td>${escapeHtml(row.employee)}</td><td>${escapeHtml(row.department)}</td><td>${escapeHtml(row.accessPoint)}</td><td>${escapeHtml(row.eventName)}</td><td>${escapeHtml(row.cardCode)}</td></tr>`;
-    }).join('');
-    return `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>${escapeHtml(activeReport.title)}</title><style>body{font-family:Arial,sans-serif;color:#17212b;margin:32px}h1{font-size:23px;margin:0 0 8px}p{margin:5px 0;color:#4b5b68;font-size:12px}.summary{margin:22px 0 16px;padding:12px;background:#edf6fa;border-left:4px solid #007db9}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#09304b;color:#fff;text-align:left}th,td{padding:8px;border:1px solid #c9d5de;vertical-align:top}tr:nth-child(even){background:#f5f8fa}.photo{display:inline-grid;width:34px;height:34px;place-items:center;object-fit:cover;border:1px solid #b6c5d0;border-radius:50%;background:#eef4f7}.fallback{font-size:10px;font-weight:700}@media print{body{margin:12mm}thead{display:table-header-group}}</style></head><body><h1>${escapeHtml(activeReport.title)}</h1><p>Період: ${escapeHtml(periodLabel)}</p><p>Сформовано: ${new Date().toLocaleString('uk-UA')}</p><div class="summary"><b>Подій у вибірці: ${reportRows.length}</b><br>${escapeHtml(selectedFilters)}</div><table><thead><tr><th>Дата та час</th><th>Фото</th><th>Працівник</th><th>Відділ</th><th>Місце</th><th>Подія</th><th>Ідентифікатор</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`;
-  };
-
-  const downloadReport = () => {
-    const documentContent = createReportDocument();
-    if (exportFormat === 'word') {
-      const url = URL.createObjectURL(new Blob([documentContent], { type: 'application/msword;charset=utf-8' }));
+  const downloadReport = async () => {
+    setIsExporting(true);
+    setExportError('');
+    try {
+      const { blob, fileName } = await downloadServerReport({
+        format: exportFormat,
+        kind,
+        from: new Date(range.from).getTime(),
+        to: new Date(range.to).getTime(),
+        employeeTokens: filters.employeeTokens,
+        departments: filters.departments,
+        accessPoint: filters.accessPoint,
+      });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${reportFileName}.doc`;
+      link.download = fileName;
       link.click();
-      URL.revokeObjectURL(url);
-    } else {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) return;
-      printWindow.document.write(documentContent);
-      printWindow.document.close();
-      window.setTimeout(() => { printWindow.focus(); printWindow.print(); }, 250);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+      setExportModalOpen(false);
+    } catch {
+      setExportError('Не вдалося сформувати звіт на сервері. Спробуйте ще раз.');
+    } finally {
+      setIsExporting(false);
     }
-    setExportModalOpen(false);
   };
 
   return <DashboardLayout>
@@ -305,14 +271,14 @@ export function ReportsPage() {
           <footer className="report-modal-footer"><button className="report-modal-reset" onClick={() => setDraftFilters(emptyFilters)} type="button">Очистити фільтри</button><span />{invalidDraftRange && <small className="report-range-error">Перевірте дату й час діапазону.</small>}<button className="personnel-cancel" onClick={() => setReportModalOpen(false)} type="button">Скасувати</button><button className="report-export" disabled={invalidDraftRange} onClick={generateReport} type="button">Сформувати</button></footer>
         </section>
       </div>}
-      {exportModalOpen && <div className="report-modal-backdrop" onMouseDown={() => setExportModalOpen(false)} role="presentation">
+      {exportModalOpen && <div className="report-modal-backdrop" onMouseDown={() => { if (!isExporting) setExportModalOpen(false); }} role="presentation">
         <section aria-label="Формат завантаження звіту" className="report-modal report-export-modal" onMouseDown={(event) => event.stopPropagation()}>
-          <header className="report-modal-header"><div><h2>Завантажити звіт</h2><p>Оберіть формат для «{activeReport.title}».</p></div><button aria-label="Закрити" onClick={() => setExportModalOpen(false)} type="button">×</button></header>
+          <header className="report-modal-header"><div><h2>Завантажити звіт</h2><p>Оберіть формат для «{activeReport.title}».</p></div><button aria-label="Закрити" disabled={isExporting} onClick={() => setExportModalOpen(false)} type="button">×</button></header>
           <div className="report-export-formats">
-            <button className={exportFormat === 'pdf' ? 'report-format active' : 'report-format'} onClick={() => setExportFormat('pdf')} type="button"><b>PDF</b><span>Відкриє підготовлений звіт у вікні друку — там його можна зберегти як PDF.</span></button>
-            <button className={exportFormat === 'word' ? 'report-format active' : 'report-format'} onClick={() => setExportFormat('word')} type="button"><b>Word</b><span>Завантажить редагований файл .doc із поточною вибіркою.</span></button>
+            <button className={exportFormat === 'pdf' ? 'report-format active' : 'report-format'} onClick={() => setExportFormat('pdf')} type="button"><b>PDF</b><span>Сервер сформує та завантажить готовий PDF-звіт.</span></button>
+            <button className={exportFormat === 'word' ? 'report-format active' : 'report-format'} onClick={() => setExportFormat('word')} type="button"><b>Word</b><span>Сервер сформує редагований файл Word із поточною вибіркою.</span></button>
           </div>
-          <footer className="report-modal-footer"><span />{eventsQuery.isError && <small className="reports-error">Не вдалося завантажити дані U‑PROX.</small>}<button className="personnel-cancel" onClick={() => setExportModalOpen(false)} type="button">Скасувати</button><button className="report-export" disabled={eventsQuery.isFetching || eventsQuery.isError || !reportRows.length} onClick={downloadReport} type="button">{eventsQuery.isFetching ? 'Завантаження…' : exportFormat === 'pdf' ? 'Відкрити PDF' : 'Завантажити Word'}</button></footer>
+          <footer className="report-modal-footer"><span />{exportError && <small className="reports-error">{exportError}</small>}<button className="personnel-cancel" disabled={isExporting} onClick={() => setExportModalOpen(false)} type="button">Скасувати</button><button className="report-export" disabled={isExporting} onClick={downloadReport} type="button">{isExporting ? 'Формування на сервері…' : exportFormat === 'pdf' ? 'Завантажити PDF' : 'Завантажити Word'}</button></footer>
         </section>
       </div>}
     </main>

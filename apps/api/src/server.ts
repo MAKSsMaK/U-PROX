@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import PDFDocument from 'pdfkit';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
@@ -38,6 +39,7 @@ const planStorageFile = env.PLAN_STORAGE_FILE
   ? resolve(env.PLAN_STORAGE_FILE)
   : resolve(moduleDirectory, '../data/plan-elements.json');
 const personnelStorageFile = resolve(dirname(planStorageFile), 'personnel-overrides.json');
+const reportFontFile = resolve(moduleDirectory, '../assets/NotoSans-Regular.ttf');
 await app.register(rateLimit, { global: false });
 type Session = { sid: string; expiresAt: number };
 let session: Session | undefined;
@@ -47,6 +49,7 @@ type CachedImage = { content: Buffer; contentType: string; expiresAt: number };
 const images = new Map<string, CachedImage>();
 const LIVE_CACHE_MS = 5_000;
 const UPROX_EVENT_PAGE_SIZE = 200;
+const UPROX_REPORT_MAX_EVENTS = 100_000;
 type TimedCache = { value: unknown; expiresAt: number; pending?: Promise<unknown> };
 const liveControllerCache = new Map<string, TimedCache>();
 type UproxxEmployee = {
@@ -491,6 +494,17 @@ const eventsQuery = z.object({
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'The event range start must be before its end' });
   }
 });
+const reportExportSchema = z.object({
+  format: z.enum(['pdf', 'word']),
+  kind: z.enum(['access', 'security', 'worktime']).default('access'),
+  from: z.coerce.number().int().positive(),
+  to: z.coerce.number().int().positive(),
+  employeeTokens: z.array(z.string().min(1).max(128)).max(2_000).default([]),
+  departments: z.array(z.string().min(1).max(300)).max(2_000).default([]),
+  accessPoint: z.string().max(300).default(''),
+}).superRefine((value, context) => {
+  if (value.from > value.to) context.addIssue({ code: z.ZodIssueCode.custom, message: 'The event range start must be before its end' });
+});
 
 function issuedMilliseconds(value: unknown) {
   return Number(typeof value === 'string' ? (value.match(/\d+/)?.[0] ?? 0) : 0);
@@ -499,6 +513,19 @@ function issuedMilliseconds(value: unknown) {
 type EventRecord = Record<string, unknown>;
 type EventsSnapshot = Record<string, unknown> & { Event: EventRecord[]; NextToken?: string | number };
 type EventRange = { events: EventRecord[]; refreshedAt: number; expiresAt: number; pending?: Promise<EventRecord[]> };
+type ReportEventRow = {
+  issued: number;
+  occurredAt: string;
+  employee: string;
+  employeeToken?: string;
+  department: string;
+  position: string;
+  accessPoint: string;
+  senderToken?: string;
+  eventName: string;
+  cardCode: string;
+  photoToken?: string;
+};
 const eventRangeCache = new Map<string, EventRange>();
 
 function eventKey(event: EventRecord) {
@@ -591,6 +618,88 @@ async function fetchEventsFromUproxx(from: number, to: number, limit: number) {
   return events;
 }
 
+function reportDate(milliseconds: number) {
+  return new Intl.DateTimeFormat('uk-UA', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(milliseconds));
+}
+
+function textValue(value: unknown) {
+  return typeof value === 'string' ? value : value === undefined || value === null ? '' : String(value);
+}
+
+function reportRow(event: EventRecord): ReportEventRow {
+  const user = event.User as { Name?: string; Token?: string | number; Post?: string; ImageToken?: string | number; PhotoToken?: string | number } | undefined;
+  const employee = event.Employee as UproxxEmployee | undefined;
+  const department = event.Department as { Name?: string } | undefined;
+  const sender = event.Sender as { Name?: string; Token?: string | number } | undefined;
+  const message = event.Message as { Name?: string } | undefined;
+  const issued = issuedMilliseconds(event.Issued);
+  const imageToken = event.PhotoToken ?? event.ImageToken ?? user?.PhotoToken ?? user?.ImageToken ?? employee?.PhotoToken ?? employee?.ImageToken;
+  return {
+    issued,
+    occurredAt: issued ? reportDate(issued) : '—',
+    employee: user?.Name || employee?.Name || (event.CardCode ? 'Невідома картка' : 'Системна подія'),
+    employeeToken: user?.Token === undefined && employee?.Token === undefined ? undefined : String(user?.Token ?? employee?.Token),
+    department: department?.Name || employee?.Department?.Name || employee?.DepartmentName || '—',
+    position: user?.Post || employee?.Post || '—',
+    accessPoint: sender?.Name || '—',
+    senderToken: sender?.Token === undefined ? undefined : String(sender.Token),
+    eventName: message?.Name || 'Подія без назви',
+    cardCode: textValue(event.CardCode) || '—',
+    photoToken: imageToken === undefined ? undefined : String(imageToken),
+  };
+}
+
+function isSecurityReportEvent(name: string) {
+  const value = name.toLocaleLowerCase('uk-UA');
+  return ['відмов', 'заборон', 'тривог', 'помил', 'заблок', 'несправ', 'авар'].some((term) => value.includes(term));
+}
+
+function collapseReportDuplicates(rows: ReportEventRow[]) {
+  const mostRecent = new Map<string, number>();
+  return rows.filter((row) => {
+    const name = row.eventName.toLocaleLowerCase('uk-UA');
+    if (!name.includes('дозвол') && !name.includes('доступ надан')) return true;
+    const actor = row.employeeToken || (row.cardCode !== '—' ? row.cardCode : row.employee);
+    const key = `${actor}|${row.senderToken ?? row.accessPoint}|${name.replace(/\s+/g, ' ').trim()}`;
+    const newer = mostRecent.get(key);
+    if (newer !== undefined && newer - row.issued <= 5_000) return false;
+    mostRecent.set(key, row.issued);
+    return true;
+  });
+}
+
+async function getReportRows(input: z.infer<typeof reportExportSchema>) {
+  const source = await fetchEventsFromUproxx(input.from, input.to, UPROX_REPORT_MAX_EVENTS);
+  const employeeTokens = new Set(input.employeeTokens);
+  const departments = new Set(input.departments);
+  const rows = source.map(reportRow).filter((row) => {
+    if (input.kind === 'security' && !isSecurityReportEvent(row.eventName)) return false;
+    if (employeeTokens.size && (!row.employeeToken || !employeeTokens.has(row.employeeToken))) return false;
+    if (departments.size && !departments.has(row.department)) return false;
+    if (input.accessPoint && input.accessPoint !== row.accessPoint) return false;
+    return true;
+  });
+  return collapseReportDuplicates(rows);
+}
+
+function htmlEscape(value: string) {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+}
+
+function groupReportRows(rows: ReportEventRow[]) {
+  const groups = new Map<string, ReportEventRow[]>();
+  for (const row of rows) {
+    const key = row.employeeToken ?? `${row.employee}|${row.department}`;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+  return [...groups.values()];
+}
+
+/** Lets pending HTTP work run while a large locally generated document is built. */
+function yieldReportWork() {
+  return new Promise<void>((resolve) => setImmediate(resolve));
+}
+
 async function getEventsRange(from: number, to: number, limit: number) {
   const key = `${from}:${to}:${limit}`;
   const existing = eventRangeCache.get(key);
@@ -656,6 +765,117 @@ async function getImage(imageToken: string) {
   return image;
 }
 
+function reportTitle(kind: z.infer<typeof reportExportSchema>['kind']) {
+  if (kind === 'security') return 'Безпекові події';
+  if (kind === 'worktime') return 'Робочий час';
+  return 'Журнал проходів';
+}
+
+function reportFileBase(kind: z.infer<typeof reportExportSchema>['kind']) {
+  if (kind === 'security') return 'bezpekovi-podii';
+  if (kind === 'worktime') return 'robochyi-chas';
+  return 'zhurnal-prokhodiv';
+}
+
+function reportPeriod(input: z.infer<typeof reportExportSchema>) {
+  return `${reportDate(input.from)} — ${reportDate(input.to)}`;
+}
+
+async function imageForReport(row: ReportEventRow) {
+  if (!row.photoToken) return undefined;
+  try {
+    return await getImage(row.photoToken);
+  } catch (error) {
+    app.log.warn({ error, photoToken: row.photoToken }, 'Unable to load employee photo for report');
+    return undefined;
+  }
+}
+
+function reportFilterSummary(input: z.infer<typeof reportExportSchema>) {
+  const filters = [
+    input.employeeTokens.length ? `Працівників: ${input.employeeTokens.length}` : '',
+    input.departments.length ? `Відділи: ${input.departments.join(', ')}` : '',
+    input.accessPoint ? `Місце: ${input.accessPoint}` : '',
+  ].filter(Boolean);
+  return filters.join(' · ') || 'Без додаткових фільтрів';
+}
+
+async function wordReportHtml(input: z.infer<typeof reportExportSchema>, rows: ReportEventRow[]) {
+  const groups = groupReportRows(rows);
+  const sections: string[] = [];
+  for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+    if (groupIndex > 0 && groupIndex % 20 === 0) await yieldReportWork();
+    const employeeEvents = groups[groupIndex];
+    const employee = employeeEvents[0];
+    const image = await imageForReport(employee);
+    const photo = image
+      ? `<img class="employee-photo" alt="${htmlEscape(employee.employee)}" src="data:${image.contentType};base64,${image.content.toString('base64')}">`
+      : `<span class="employee-photo fallback">${htmlEscape(employee.employee.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '—')}</span>`;
+    const events = employeeEvents.map((event) => `<tr><td>${htmlEscape(event.occurredAt)}</td><td>${htmlEscape(event.accessPoint)}</td><td>${htmlEscape(event.eventName)}</td><td>${htmlEscape(event.cardCode)}</td></tr>`).join('');
+    sections.push(`<section class="employee-section"><header>${photo}<div><h2>${htmlEscape(employee.employee)}</h2><p>${htmlEscape(employee.department)} · ${htmlEscape(employee.position)}</p></div></header><table><thead><tr><th>Дата та час</th><th>Місце</th><th>Подія</th><th>Ідентифікатор</th></tr></thead><tbody>${events}</tbody></table></section>`);
+  }
+  return `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>${htmlEscape(reportTitle(input.kind))}</title><style>body{font-family:Arial,sans-serif;color:#17212b;margin:28px}h1{font-size:23px}.summary{margin:18px 0;padding:12px;background:#edf6fa;border-left:4px solid #007db9}.employee-section{break-before:page;page-break-before:always;margin-top:24px}.employee-section:first-of-type{break-before:auto;page-break-before:auto}.employee-section header{display:flex;align-items:center;gap:14px;margin-bottom:10px;padding:11px;background:#f1f7fa;border:1px solid #bed0db}.employee-section h2{margin:0;font-size:17px}.employee-section p{margin:4px 0 0;color:#4b5b68;font-size:12px}.employee-photo{width:54px;height:54px;object-fit:cover;border:1px solid #aabdc9;border-radius:50%;background:#fff}.fallback{display:inline-grid;place-items:center;font-weight:700}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#09304b;color:#fff;text-align:left}th,td{padding:8px;border:1px solid #c9d5de;vertical-align:top}tr:nth-child(even){background:#f5f8fa}</style></head><body><h1>${htmlEscape(reportTitle(input.kind))}</h1><p>Період: ${htmlEscape(reportPeriod(input))}</p><p>Сформовано: ${htmlEscape(reportDate(Date.now()))}</p><div class="summary"><b>Подій у вибірці: ${rows.length}</b><br>${htmlEscape(reportFilterSummary(input))}</div>${sections.join('')}</body></html>`;
+}
+
+async function renderPdfReport(document: PDFKit.PDFDocument, input: z.infer<typeof reportExportSchema>, rows: ReportEventRow[]) {
+  const pageBottom = () => document.page.height - document.page.margins.bottom;
+  const addPage = () => { document.addPage(); document.font('Noto').fontSize(9).fillColor('#607180').text(reportTitle(input.kind), document.page.margins.left, 28, { align: 'right' }); document.moveDown(2); };
+  const ensureSpace = (height: number) => { if (document.y + height > pageBottom()) addPage(); };
+  document.registerFont('Noto', reportFontFile);
+  document.font('Noto').fillColor('#17212b').fontSize(21).text(reportTitle(input.kind));
+  document.moveDown(0.45).fontSize(10).fillColor('#4b5b68').text(`Період: ${reportPeriod(input)}`).text(`Сформовано: ${reportDate(Date.now())}`);
+  document.moveDown(1).fillColor('#0b698d').fontSize(11).text(`Подій у вибірці: ${rows.length}`).fontSize(9).fillColor('#4b5b68').text(reportFilterSummary(input));
+  const columns = [90, 145, 180, 102];
+  const headers = ['Дата та час', 'Місце', 'Подія', 'Ідентифікатор'];
+  const drawTableHeader = () => {
+    ensureSpace(25);
+    const x = document.page.margins.left;
+    const y = document.y;
+    let offset = 0;
+    document.save().fillColor('#09304b').rect(x, y, columns.reduce((total, width) => total + width, 0), 21).fill();
+    document.fillColor('#ffffff').fontSize(8);
+    headers.forEach((header, index) => { document.text(header, x + offset + 5, y + 6, { width: columns[index] - 10 }); offset += columns[index]; });
+    document.restore().fillColor('#17212b');
+    document.y = y + 21;
+  };
+  const groups = groupReportRows(rows);
+  for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+    const employeeEvents = groups[groupIndex];
+    const employee = employeeEvents[0];
+    if (groupIndex > 0) addPage();
+    ensureSpace(70);
+    const headerY = document.y;
+    const image = await imageForReport(employee);
+    if (image && ['image/jpeg', 'image/png'].includes(image.contentType)) {
+      try { document.image(image.content, document.page.margins.left, headerY, { fit: [48, 48] }); } catch { /* Invalid image data is replaced by text below. */ }
+    }
+    document.fontSize(15).fillColor('#102d43').text(employee.employee, document.page.margins.left + 62, headerY, { width: 430 });
+    document.moveDown(0.25).fontSize(9).fillColor('#4b5b68').text(`${employee.department} · ${employee.position}`, document.page.margins.left + 62, headerY + 23, { width: 430 });
+    document.y = headerY + 60;
+    drawTableHeader();
+    for (let eventIndex = 0; eventIndex < employeeEvents.length; eventIndex += 1) {
+      const event = employeeEvents[eventIndex];
+      const values = [event.occurredAt, event.accessPoint, event.eventName, event.cardCode];
+      document.fontSize(8);
+      const rowHeight = Math.max(24, ...values.map((value, index) => document.heightOfString(value, { width: columns[index] - 10 }) + 10));
+      if (document.y + rowHeight > pageBottom()) {
+        addPage();
+        document.fontSize(10).fillColor('#102d43').text(`${employee.employee} (продовження)`);
+        document.moveDown(0.5);
+        drawTableHeader();
+      }
+      const x = document.page.margins.left;
+      const y = document.y;
+      let offset = 0;
+      document.save().lineWidth(0.4).strokeColor('#c9d5de').rect(x, y, columns.reduce((total, width) => total + width, 0), rowHeight).stroke();
+      values.forEach((value, index) => { document.fillColor('#17212b').text(value, x + offset + 5, y + 5, { width: columns[index] - 10 }); offset += columns[index]; });
+      document.restore();
+      document.y = y + rowHeight;
+      if (eventIndex > 0 && eventIndex % 250 === 0) await yieldReportWork();
+    }
+  }
+}
+
 app.get('/api/events', async (request) => {
   const { limit, hours, from: requestedFrom, to: requestedTo } = eventsQuery.parse(request.query);
   const to = requestedTo ?? Date.now();
@@ -680,6 +900,37 @@ app.get('/api/images/:token', async (request, reply) => {
     .header('Cache-Control', 'private, max-age=3600')
     .type(image.contentType)
     .send(image.content);
+});
+
+app.post('/api/reports/export', {
+  config: { rateLimit: { max: 4, timeWindow: '1 minute' } },
+}, async (request, reply) => {
+  const input = reportExportSchema.parse(request.body);
+  const rows = await getReportRows(input);
+  const filename = `${reportFileBase(input.kind)}-${new Date().toISOString().slice(0, 10)}`;
+  if (input.format === 'word') {
+    const document = await wordReportHtml(input, rows);
+    return reply
+      .header('Content-Disposition', `attachment; filename="${filename}.doc"`)
+      .type('application/msword; charset=utf-8')
+      .send(document);
+  }
+
+  reply.hijack();
+  reply.raw.writeHead(200, {
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `attachment; filename="${filename}.pdf"`,
+    'Cache-Control': 'no-store',
+  });
+  const document = new PDFDocument({ autoFirstPage: true, margin: 36, size: 'A4', bufferPages: false });
+  document.pipe(reply.raw);
+  try {
+    await renderPdfReport(document, input, rows);
+  } catch (error) {
+    app.log.error({ error }, 'Unable to render report PDF');
+  } finally {
+    document.end();
+  }
 });
 const probes = {
   version: { path: 'VersionGet', body: {} },
