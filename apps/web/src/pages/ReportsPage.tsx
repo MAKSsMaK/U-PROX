@@ -34,12 +34,15 @@ export function ReportsPage() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<ReportExportFormat>('pdf');
-  const personnelQuery = useQuery({ queryKey: ['personnel'], queryFn: getPersonnel, staleTime: 30_000 });
-  const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: getPlanCatalog, staleTime: 60_000 });
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [departmentSearch, setDepartmentSearch] = useState('');
+  const personnelQuery = useQuery({ queryKey: ['personnel'], queryFn: getPersonnel, staleTime: 30_000, enabled: reportModalOpen || exportModalOpen });
+  const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: getPlanCatalog, staleTime: 60_000, enabled: reportModalOpen });
   const eventsQuery = useQuery({
     queryKey: ['reports-events', hours],
     queryFn: () => getEvents({ hours, limit: 10_000 }),
     refetchInterval: 60_000,
+    enabled: reportModalOpen || exportModalOpen,
   });
   const rows = useMemo(() => toEventTableRows(eventsQuery.data), [eventsQuery.data]);
   const reportRows = useMemo(() => rows.filter((row) => {
@@ -52,6 +55,17 @@ export function ReportsPage() {
   const activeReport = reportCards.find((item) => item.kind === kind)!;
   const personnel = personnelQuery.data?.personnel ?? [];
   const departments = personnelQuery.data?.departments ?? [];
+  const filteredDepartments = useMemo(() => {
+    const term = departmentSearch.trim().toLocaleLowerCase('uk-UA');
+    return departments.filter((department) => !term || department.toLocaleLowerCase('uk-UA').includes(term));
+  }, [departmentSearch, departments]);
+  const filteredPersonnel = useMemo(() => {
+    const term = employeeSearch.trim().toLocaleLowerCase('uk-UA');
+    return personnel.filter((person) => {
+      const matchesDepartment = !draftFilters.department || person.department === draftFilters.department;
+      return matchesDepartment && (!term || `${person.name} ${person.position} ${person.identifier}`.toLocaleLowerCase('uk-UA').includes(term));
+    });
+  }, [draftFilters.department, employeeSearch, personnel]);
   const accessPoints = useMemo(() => {
     const catalogItems = catalogQuery.data ? [...catalogQuery.data.doors, ...catalogQuery.data.inputs] : [];
     const names = new Set([...catalogItems.map((item) => item.name), ...rows.map((row) => row.accessPoint)]);
@@ -61,6 +75,8 @@ export function ReportsPage() {
     setDraftKind(kind);
     setDraftHours(hours);
     setDraftFilters(filters);
+    setEmployeeSearch('');
+    setDepartmentSearch('');
     setReportModalOpen(true);
   };
   const generateReport = () => {
@@ -115,7 +131,7 @@ export function ReportsPage() {
       <section aria-labelledby="reports-library-title" className="reports-library">
         <div className="reports-library-heading"><div><p className="eyebrow">ГОТОВІ ШАБЛОНИ</p><h2 id="reports-library-title">Доступні звіти</h2><span>Оберіть звіт, задайте параметри та завантажте його у потрібному форматі.</span></div></div>
         <div className="report-cards" aria-label="Тип звіту">
-        {reportCards.map((item) => <button className={kind === item.kind ? 'report-card active' : 'report-card'} key={item.kind} onClick={() => { setKind(item.kind); setDraftKind(item.kind); setDraftHours(hours); setDraftFilters(filters); setReportModalOpen(true); }} type="button">
+        {reportCards.map((item) => <button className={kind === item.kind ? 'report-card active' : 'report-card'} key={item.kind} onClick={() => { setKind(item.kind); setDraftKind(item.kind); setDraftHours(hours); setDraftFilters(filters); setEmployeeSearch(''); setDepartmentSearch(''); setReportModalOpen(true); }} type="button">
           <i>{item.icon}</i><span><b>{item.title}</b><small>{item.description}</small></span>
         </button>)}
         </div>
@@ -126,11 +142,13 @@ export function ReportsPage() {
           <div className="report-modal-fields">
             <label>Тип звіту<select onChange={(event) => setDraftKind(event.target.value as ReportKind)} value={draftKind}>{reportCards.map((item) => <option key={item.kind} value={item.kind}>{item.title}</option>)}</select></label>
             <label>Період<select onChange={(event) => setDraftHours(Number(event.target.value))} value={draftHours}><option value={24}>Останні 24 години</option><option value={72}>Останні 3 дні</option><option value={168}>Останні 7 днів</option></select></label>
-            <label>Працівник<select onChange={(event) => setDraftFilters((current) => ({ ...current, employeeToken: event.target.value }))} value={draftFilters.employeeToken}><option value="">Усі працівники</option>{personnel.map((person) => <option key={person.token} value={person.token}>{person.name}</option>)}</select></label>
-            <label>Відділ<select onChange={(event) => setDraftFilters((current) => ({ ...current, department: event.target.value }))} value={draftFilters.department}><option value="">Усі відділи</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></label>
+            <label>Пошук відділу<input onChange={(event) => setDepartmentSearch(event.target.value)} placeholder="Назва відділу" type="search" value={departmentSearch} /></label>
+            <label>Відділ<select onChange={(event) => setDraftFilters((current) => ({ ...current, department: event.target.value, employeeToken: personnel.find((person) => person.token === current.employeeToken)?.department === event.target.value || !event.target.value ? current.employeeToken : '' }))} value={draftFilters.department}><option value="">Усі відділи</option>{filteredDepartments.map((department) => <option key={department} value={department}>{department}</option>)}</select></label>
+            <label>Пошук працівника<input onChange={(event) => setEmployeeSearch(event.target.value)} placeholder="ПІБ або ідентифікатор" type="search" value={employeeSearch} /></label>
+            <label>Працівник<select onChange={(event) => setDraftFilters((current) => ({ ...current, employeeToken: event.target.value }))} value={draftFilters.employeeToken}><option value="">{draftFilters.department ? 'Усі працівники відділу' : 'Усі працівники'}</option>{filteredPersonnel.map((person) => <option key={person.token} value={person.token}>{person.name}</option>)}</select></label>
             <label className="wide">Точка доступу / місце<select onChange={(event) => setDraftFilters((current) => ({ ...current, accessPoint: event.target.value }))} value={draftFilters.accessPoint}><option value="">Усі точки доступу</option>{accessPoints.map((accessPoint) => <option key={accessPoint} value={accessPoint}>{accessPoint}</option>)}</select></label>
           </div>
-          <footer className="report-modal-footer"><button className="report-modal-reset" onClick={() => setDraftFilters(emptyFilters)} type="button">Очистити фільтри</button><span /><button className="personnel-cancel" onClick={() => setReportModalOpen(false)} type="button">Скасувати</button><button className="report-export" onClick={generateReport} type="button">Сформувати</button></footer>
+          <footer className="report-modal-footer"><button className="report-modal-reset" onClick={() => { setDraftFilters(emptyFilters); setEmployeeSearch(''); setDepartmentSearch(''); }} type="button">Очистити фільтри</button><span /><button className="personnel-cancel" onClick={() => setReportModalOpen(false)} type="button">Скасувати</button><button className="report-export" onClick={generateReport} type="button">Сформувати</button></footer>
         </section>
       </div>}
       {exportModalOpen && <div className="report-modal-backdrop" onMouseDown={() => setExportModalOpen(false)} role="presentation">
