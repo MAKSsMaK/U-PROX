@@ -1,16 +1,22 @@
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getEvents } from '../api';
 import { DataTable } from '../components/tables/DataTable';
-import { eventTableColumns, toEventTableRows } from '../features/events/eventTable';
+import { eventTableColumns, getEventSeverity, toEventTableRows } from '../features/events/eventTable';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 
 export function EventsPage() {
+  const [eventMode, setEventMode] = useState<'normal' | 'security'>('normal');
   const eventsQuery = useQuery({
     queryKey: ['events'],
     queryFn: () => getEvents({ hours: 24, limit: 50 }),
     refetchInterval: 5_000,
   });
   const rows = toEventTableRows(eventsQuery.data);
+  const visibleRows = useMemo(() => rows.filter((row) => {
+    const isSecurity = getEventSeverity(row.eventName) !== 'normal';
+    return eventMode === 'security' ? isSecurity : !isSecurity;
+  }), [eventMode, rows]);
 
   return (
     <DashboardLayout>
@@ -29,12 +35,16 @@ export function EventsPage() {
         <section className="events-panel">
           <div className="events-panel-title">
             <div>
-              <h2>Журнал подій</h2>
-              <p>Останні події, що повертає U‑PROX API</p>
+              <h2>{eventMode === 'security' ? 'Безпекові події' : 'Звичайні події'}</h2>
+              <p>{eventMode === 'security' ? 'Відмови, попередження, тривоги та несправності.' : 'Входи, виходи й інші штатні події U‑PROX.'}</p>
             </div>
-            <button onClick={() => eventsQuery.refetch()} type="button">
-              Оновити
-            </button>
+            <div className="events-panel-actions">
+              <div aria-label="Тип подій" className="event-mode-toggle">
+                <button aria-pressed={eventMode === 'normal'} className={eventMode === 'normal' ? 'active' : ''} onClick={() => setEventMode('normal')} type="button">Звичайні</button>
+                <button aria-pressed={eventMode === 'security'} className={eventMode === 'security' ? 'active' : ''} onClick={() => setEventMode('security')} type="button">Безпекові</button>
+              </div>
+              <button onClick={() => eventsQuery.refetch()} type="button">Оновити</button>
+            </div>
           </div>
           {eventsQuery.isError ? (
             <div className="events-error">
@@ -43,10 +53,10 @@ export function EventsPage() {
           ) : (
             <DataTable
               columns={eventTableColumns}
-              emptyMessage="U‑PROX не повернув подій за поточним запитом."
+              emptyMessage={eventMode === 'security' ? 'Безпекових подій за поточним запитом немає.' : 'Звичайних подій за поточним запитом немає.'}
               getRowId={(row) => row.id}
               isLoading={eventsQuery.isLoading}
-              rows={rows}
+              rows={visibleRows}
             />
           )}
         </section>
