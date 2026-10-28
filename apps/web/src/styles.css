@@ -674,7 +674,7 @@ select {
 }
 .plan-details-action {
   width: 100%;
-  margin-top: 14px;
+  margin: 14px 0 14px;
   border: 1px solid #285f83;
   border-radius: 5px;
   padding: 10px;
@@ -960,6 +960,52 @@ pre {
 .report-generate { align-self: start; border: 1px solid #2d9ed4; border-radius: 6px; padding: 10px 13px; background: #087bb9; color: #effaff; font: 800 12px Manrope; cursor: pointer; }.report-generate:hover { background: #1098dc; }.report-modal-backdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 20px; background: #020914bd; backdrop-filter: blur(3px); }.report-modal { width: min(620px, 100%); max-height: calc(100dvh - 40px); overflow: auto; scrollbar-color: #4683aa #091827; scrollbar-width: thin; border: 1px solid #315d7f; border-radius: 10px; background: #0b1a2b; box-shadow: 0 20px 80px #000b; }.report-modal::-webkit-scrollbar { width: 10px; }.report-modal::-webkit-scrollbar-track { background: #091827; }.report-modal::-webkit-scrollbar-thumb { border: 2px solid #091827; border-radius: 8px; background: #4683aa; }.report-modal::-webkit-scrollbar-thumb:hover { background: #64acd5; }.report-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 22px; border-bottom: 1px solid #29425a; }.report-modal-header h2 { margin: 0; color: #f2f8ff; font-size: 19px; }.report-modal-header p { margin: 4px 0 0; color: #88a6be; font-size: 11px; }.report-modal-header button { border: 0; background: transparent; color: #a8c5dc; font-size: 26px; cursor: pointer; }.report-modal-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 22px; }.report-modal-fields label { display: grid; gap: 6px; color: #b8d1e7; font-size: 11px; font-weight: 700; }.report-modal-fields .wide { grid-column: 1 / -1; }.report-modal-fields input, .report-modal-fields select { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid #345674; border-radius: 6px; padding: 10px; background: #0d2236; color: #e7f2ff; font: 600 12px Manrope; }.report-modal-fields input::placeholder { color: #63839e; }.report-modal-fields select { cursor: pointer; scrollbar-color: #4683aa #091827; scrollbar-width: thin; }.report-modal-fields select::-webkit-scrollbar { width: 9px; }.report-modal-fields select::-webkit-scrollbar-track { background: #091827; }.report-modal-fields select::-webkit-scrollbar-thumb { border: 2px solid #091827; border-radius: 8px; background: #4683aa; }.report-modal-footer { display: flex; align-items: center; gap: 9px; padding: 15px 22px; border-top: 1px solid #29425a; }.report-modal-footer > span { flex: 1; }.report-modal-reset { border: 1px solid #385a78; border-radius: 6px; padding: 9px 11px; background: transparent; color: #bdd6e9; font: 700 11px Manrope; cursor: pointer; }
 .report-export-modal { width: min(520px, 100%); }.report-export-formats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 22px; }.report-format { display: grid; min-height: 138px; align-content: start; gap: 10px; border: 1px solid #35516a; border-radius: 8px; padding: 17px; background: #0c2033; color: #9cb8cc; text-align: left; cursor: pointer; }.report-format:hover { border-color: #4a95bf; background: #102b43; }.report-format.active { border-color: #25b7f1; background: #0d344e; box-shadow: inset 0 0 0 1px #46caff44; }.report-format b { color: #effaff; font-size: 18px; }.report-format span { font-size: 11px; line-height: 1.5; }
 .report-range-error { color: #ff9da6; font-size: 10px; }
+.report-date-field { position: relative; display: grid; gap: 6px; min-width: 0; color: #b8d1e7; font-size: 11px; font-weight: 700; }
+.report-date-controls { display: grid; grid-template-columns: minmax(0, 1fr) 78px; gap: 7px; }
+.report-date-trigger, .report-time-input { box-sizing: border-box; min-width: 0; height: 40px; border: 1px solid #345674; border-radius: 6px; background: #0d2236; color: #e7f2ff; font: 600 12px Manrope; }
+.report-date-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; cursor: pointer; text-align: left; }
+.report-date-trigger:hover, .report-date-trigger[aria-expanded="true"] { border-color: #39aee4; background: #102d45; }
+.report-date-trigger b { color: #60c9fa; font-size: 13px; }
+.report-time-input { padding: 0 7px; color-scheme: dark; }
+.report-calendar { position: absolute; z-index: 12; top: calc(100% + 7px); left: 0; width: 278px; border: 1px solid #35749c; border-radius: 8px; padding: 10px; background: #0a1c2d; box-shadow: 0 15px 34px #000c; }
+.report-calendar-header { display: flex; align-items: center; justify-content: space-between; gap: 9px; margin-bottom: 10px; color: #e9f8ff; font-size: 12px; text-transform: capitalize; }
+.report-calendar-header button { display: grid; width: 27px; height: 27px; place-items: center; border: 1px solid #294d68; border-radius: 5px; background: #102b41; color: #73cef5; font: 700 20px/1 Manrope; cursor: pointer; }
+.report-calendar-header button:hover { background: #16425f; border-color: #4fafd9; }
+.report-calendar-weekdays, .report-calendar-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
+.report-calendar-weekdays { margin-bottom: 5px; color: #7898b2; font-size: 9px; }
+.report-calendar-days button { height: 29px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #cfe7f7; font: 700 10px Manrope; cursor: pointer; }
+.report-calendar-days button:hover { background: #163852; border-color: #2c87b6; }
+.report-calendar-days button.today { color: #61cdfa; box-shadow: inset 0 0 0 1px #2786b4; }
+.report-calendar-days button.selected { border-color: #2fb8f4; background: #087cb8; color: #fff; box-shadow: 0 0 0 1px #47c9ff66; }
+.report-calendar-today { width: 100%; margin-top: 9px; border: 0; border-top: 1px solid #25455f; padding: 9px 0 1px; background: transparent; color: #65cdf8; font: 700 10px Manrope; cursor: pointer; }
+.compact-select { position: relative; min-width: 0; }
+.compact-select summary { display: flex; box-sizing: border-box; width: 100%; height: 40px; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #345674; border-radius: 6px; padding: 0 10px; background: #0d2236; color: #e7f2ff; cursor: pointer; font: 600 12px Manrope; list-style: none; }
+.compact-select summary::-webkit-details-marker { display: none; }
+.compact-select summary:hover, .compact-select[open] summary { border-color: #39aee4; background: #102d45; }
+.compact-select summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compact-select summary b { flex: 0 0 auto; color: #62c8f8; font-size: 15px; }
+.compact-select-menu { position: absolute; z-index: 14; top: calc(100% + 6px); right: 0; left: 0; max-height: 192px; overflow-y: auto; border: 1px solid #39779d; border-radius: 7px; padding: 4px; background: #0a1c2d; box-shadow: 0 15px 34px #000c; scrollbar-color: #4e9bc5 #091827; scrollbar-width: thin; }
+.compact-select-menu::-webkit-scrollbar { width: 8px; }.compact-select-menu::-webkit-scrollbar-track { background: #091827; }.compact-select-menu::-webkit-scrollbar-thumb { border: 2px solid #091827; border-radius: 8px; background: #4e9bc5; }
+.compact-select-menu button { display: block; width: 100%; overflow: hidden; border: 0; border-radius: 4px; padding: 8px; background: transparent; color: #cae4f5; cursor: pointer; font: 600 11px Manrope; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.compact-select-menu button:hover, .compact-select-menu button.selected { background: #145070; color: #fff; }
+.report-modal-fields > label:nth-of-type(6) .compact-select-menu, .report-modal-fields > label:nth-of-type(7) .compact-select-menu { top: auto; bottom: calc(100% + 6px); }
+.personnel-multiselect { position: relative; min-width: 0; }
+.personnel-multiselect summary { display: flex; box-sizing: border-box; width: 100%; height: 40px; align-items: center; justify-content: space-between; gap: 9px; border: 1px solid #345674; border-radius: 6px; padding: 0 10px; background: #0d2236; color: #e7f2ff; cursor: pointer; font: 600 12px Manrope; list-style: none; }
+.personnel-multiselect summary::-webkit-details-marker { display: none; }
+.personnel-multiselect summary:hover, .personnel-multiselect[open] summary { border-color: #39aee4; background: #102d45; }
+.personnel-multiselect summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.personnel-multiselect summary b { display: grid; min-width: 20px; height: 20px; place-items: center; border-radius: 10px; background: #135071; color: #bdeaff; font-size: 10px; }
+.personnel-multiselect-menu { position: absolute; z-index: 15; top: calc(100% + 6px); right: 0; left: 0; overflow: hidden; border: 1px solid #39779d; border-radius: 7px; background: #0a1c2d; box-shadow: 0 15px 34px #000c; }
+.personnel-multiselect-menu > input { box-sizing: border-box; width: calc(100% - 16px); height: 34px; margin: 8px; border: 1px solid #315d7d; border-radius: 5px; padding: 0 9px; background: #102b40; color: #e8f6ff; font: 600 11px Manrope; }
+.personnel-multiselect-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px 7px; color: #87a9c1; font-size: 10px; }
+.personnel-multiselect-meta button { border: 0; padding: 0; background: transparent; color: #69ccf7; font: 700 10px Manrope; cursor: pointer; }
+.personnel-multiselect-options { max-height: 174px; overflow-y: auto; border-top: 1px solid #24445e; padding: 4px; scrollbar-color: #4e9bc5 #091827; scrollbar-width: thin; }
+.personnel-multiselect-options::-webkit-scrollbar { width: 8px; }.personnel-multiselect-options::-webkit-scrollbar-track { background: #091827; }.personnel-multiselect-options::-webkit-scrollbar-thumb { border: 2px solid #091827; border-radius: 8px; background: #4e9bc5; }
+.personnel-multiselect-options > button { display: grid; width: 100%; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: center; border: 0; border-radius: 5px; padding: 7px; background: transparent; color: #d5ebfa; cursor: pointer; text-align: left; }
+.personnel-multiselect-options > button:hover, .personnel-multiselect-options > button.selected { background: #135070; }
+.personnel-multiselect-options i { display: grid; width: 15px; height: 15px; place-items: center; border: 1px solid #39627d; border-radius: 3px; color: #06131f; font-size: 10px; font-style: normal; }
+.personnel-multiselect-options button.selected i { border-color: #38c2f7; background: #38c2f7; }
+.personnel-multiselect-options span { min-width: 0; }.personnel-multiselect-options b, .personnel-multiselect-options small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.personnel-multiselect-options b { font: 700 11px Manrope; }.personnel-multiselect-options small { margin-top: 2px; color: #83a2ba; font: 10px Manrope; }.personnel-multiselect-options p { margin: 0; padding: 15px 8px; color: #82a1b9; font-size: 11px; text-align: center; }
 .page-header {
   display: flex;
   align-items: flex-start;
