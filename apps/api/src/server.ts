@@ -481,6 +481,15 @@ app.get('/api/plan/live/:token', async (request, reply) => {
 const eventsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(10_000).default(50),
   hours: z.coerce.number().int().min(1).max(168).default(24),
+  from: z.coerce.number().int().positive().optional(),
+  to: z.coerce.number().int().positive().optional(),
+}).superRefine((value, context) => {
+  if ((value.from === undefined) !== (value.to === undefined)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Both from and to are required for a custom event range' });
+  }
+  if (value.from !== undefined && value.to !== undefined && value.from > value.to) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'The event range start must be before its end' });
+  }
 });
 
 function issuedMilliseconds(value: unknown) {
@@ -551,8 +560,7 @@ function nextEventToken(response: EventsSnapshot) {
  * journal is written to our disk; the brief cache below only coalesces equal
  * requests from open screens during a few seconds.
  */
-async function fetchEventsFromUproxx(hours: number, limit: number) {
-  const cutoff = Date.now() - hours * 60 * 60_000;
+async function fetchEventsFromUproxx(from: number, to: number, limit: number) {
   let startToken = '0';
   const seenTokens = new Set<string>();
   const collected = new Map<string, EventRecord>();
@@ -569,19 +577,22 @@ async function fetchEventsFromUproxx(hours: number, limit: number) {
     pages += 1;
     const oldest = Math.min(...events.map((event) => issuedMilliseconds(event.Issued)).filter(Boolean));
     const nextToken = nextEventToken(response as EventsSnapshot);
-    if (!nextToken || oldest <= cutoff || collected.size >= limit) break;
+    if (!nextToken || oldest <= from || collected.size >= limit) break;
     startToken = nextToken;
   }
   const events = [...collected.values()]
-    .filter((event) => issuedMilliseconds(event.Issued) >= cutoff)
+    .filter((event) => {
+      const issued = issuedMilliseconds(event.Issued);
+      return issued >= from && issued <= to;
+    })
     .sort((left, right) => issuedMilliseconds(right.Issued) - issuedMilliseconds(left.Issued))
     .slice(0, limit);
-  app.log.debug({ hours, limit, pages, events: events.length }, 'U-PROX event range loaded');
+  app.log.debug({ from, to, limit, pages, events: events.length }, 'U-PROX event range loaded');
   return events;
 }
 
-async function getEventsRange(hours: number, limit: number) {
-  const key = `${hours}:${limit}`;
+async function getEventsRange(from: number, to: number, limit: number) {
+  const key = `${from}:${to}:${limit}`;
   const existing = eventRangeCache.get(key);
   if (existing?.expiresAt && existing.expiresAt > Date.now()) return existing;
   if (existing?.pending) {
@@ -589,7 +600,7 @@ async function getEventsRange(hours: number, limit: number) {
     return { events, refreshedAt: existing.refreshedAt, expiresAt: existing.expiresAt };
   }
   const range: EventRange = { events: existing?.events ?? [], refreshedAt: existing?.refreshedAt ?? 0, expiresAt: 0 };
-  range.pending = fetchEventsFromUproxx(hours, limit);
+  range.pending = fetchEventsFromUproxx(from, to, limit);
   eventRangeCache.set(key, range);
   try {
     const events = await range.pending;
@@ -646,8 +657,10 @@ async function getImage(imageToken: string) {
 }
 
 app.get('/api/events', async (request) => {
-  const { limit, hours } = eventsQuery.parse(request.query);
-  const range = await getEventsRange(hours, limit);
+  const { limit, hours, from: requestedFrom, to: requestedTo } = eventsQuery.parse(request.query);
+  const to = requestedTo ?? Date.now();
+  const from = requestedFrom ?? to - hours * 60 * 60_000;
+  const range = await getEventsRange(from, to, limit);
   return {
     Event: range.events,
     refreshedAt: range.refreshedAt,

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { getEvents, getPlanLiveController } from '../../api';
 import { eventMatchesObject, getEventSeverity, toEventTableRows } from '../../features/events/eventTable';
 import { useStore } from '../../store';
@@ -23,6 +24,7 @@ type LiveEventFeedProps = {
 
 export function LiveEventFeed({ collapsed, onToggle }: LiveEventFeedProps) {
   const selected = useStore((state) => state.selected);
+  const navigate = useNavigate();
   const [detailsCollapsed, setDetailsCollapsed] = useState(true);
   const eventsQuery = useQuery({
     queryKey: ['plan-events', 24, 100],
@@ -68,6 +70,13 @@ export function LiveEventFeed({ collapsed, onToggle }: LiveEventFeedProps) {
           <div className={`object-icon ${selected.type === 'device' ? 'blue' : selected.type === 'input' ? 'yellow' : 'green'}`}>{objectIcon(selected.type)}</div>
           <h2>{selected.name}</h2>
           <p>{selected.floor} · прив’язаний до локального електронного шару</p>
+          <button
+            className="plan-details-action"
+            onClick={() => navigate(`/reports?create=1&accessPoint=${encodeURIComponent(selected.name)}`)}
+            type="button"
+          >
+            Сформувати звіт за об’єктом
+          </button>
           <button aria-expanded={!detailsCollapsed} aria-label={detailsCollapsed ? 'Розгорнути технічні деталі' : 'Згорнути технічні деталі'} className="plan-details-toggle" onClick={() => setDetailsCollapsed((current) => !current)} title={detailsCollapsed ? 'Розгорнути технічні деталі' : 'Згорнути технічні деталі'} type="button"><span>Технічні деталі</span><b>{detailsCollapsed ? '⌄' : '⌃'}</b></button>
           {!detailsCollapsed && <div className="plan-details-extra">
             <dl>

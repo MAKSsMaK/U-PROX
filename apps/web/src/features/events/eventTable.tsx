@@ -115,10 +115,32 @@ function photoToken(event: UproxxEvent) {
   );
 }
 
+/**
+ * Terminals can emit repeated "access granted" signals while a card remains
+ * at the reader. They are presentation duplicates, not separate passages.
+ * Keep the most recent one within a five-second window; the actual entry/exit
+ * event has a different name and is never removed.
+ */
+function collapseTechnicalAccessDuplicates(rows: EventTableRow[]) {
+  const mostRecent = new Map<string, number>();
+  return rows.filter((row) => {
+    const eventName = row.eventName.toLocaleLowerCase('uk-UA');
+    const isGranted = eventName.includes('дозвол') || eventName.includes('доступ надан');
+    if (!isGranted) return true;
+
+    const actor = row.employeeToken || (row.cardCode !== '—' ? row.cardCode : row.employee);
+    const key = `${actor}|${row.senderToken ?? row.accessPoint}|${eventName.replace(/\s+/g, ' ').trim()}`;
+    const newerOccurrence = mostRecent.get(key);
+    if (newerOccurrence !== undefined && newerOccurrence - row.occurredAtMs <= 5_000) return false;
+    mostRecent.set(key, row.occurredAtMs);
+    return true;
+  });
+}
+
 export function toEventTableRows(payload: unknown): EventTableRow[] {
   const response = payload as { Event?: UproxxEvent[] } | undefined;
   const events = response?.Event ?? [];
-  return [...events]
+  const rows = [...events]
     .sort((left, right) => issuedMilliseconds(right.Issued) - issuedMilliseconds(left.Issued))
     .map((event, index) => {
       const employee = event.User?.Name || (event.CardCode ? 'Невідома картка' : 'Системна подія');
@@ -144,6 +166,7 @@ export function toEventTableRows(payload: unknown): EventTableRow[] {
         position: event.User?.Post || event.Employee?.Post || '—',
       };
     });
+  return collapseTechnicalAccessDuplicates(rows);
 }
 
 export const eventTableColumns: DataTableColumn<EventTableRow>[] = [

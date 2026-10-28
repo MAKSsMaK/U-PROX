@@ -6,8 +6,13 @@ export async function runIntegrationTest() {
   return r.json();
 }
 
-export async function getEvents({ hours = 24, limit = 50 } = {}) {
-  const response = await fetch(`/api/events?hours=${hours}&limit=${limit}`);
+export async function getEvents({ hours = 24, limit = 50, from, to }: { hours?: number; limit?: number; from?: number; to?: number } = {}) {
+  const params = new URLSearchParams({ hours: String(hours), limit: String(limit) });
+  if (from !== undefined && to !== undefined) {
+    params.set('from', String(from));
+    params.set('to', String(to));
+  }
+  const response = await fetch(`/api/events?${params}`);
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
   return response.json();
 }
