@@ -31,6 +31,7 @@ export type EventTableRow = {
   occurredAtMs: number;
   photoToken?: string;
   employee: string;
+  employeeToken?: string;
   department: string;
   accessPoint: string;
   senderToken?: string;
@@ -128,6 +129,9 @@ export function toEventTableRows(payload: unknown): EventTableRow[] {
         occurredAtMs: issuedMilliseconds(event.Issued),
         photoToken: imageToken === undefined ? undefined : String(imageToken),
         employee,
+        employeeToken: event.User?.Token === undefined && event.Employee?.Token === undefined
+          ? undefined
+          : String(event.User?.Token ?? event.Employee?.Token),
         department:
           event.Department?.Name ||
           event.Employee?.Department?.Name ||
