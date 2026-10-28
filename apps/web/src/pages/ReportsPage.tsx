@@ -7,9 +7,9 @@ import { DashboardLayout } from '../layouts/DashboardLayout';
 
 type ReportKind = 'access' | 'security' | 'worktime';
 type ReportExportFormat = 'pdf' | 'word';
-type ReportFilters = { employeeTokens: string[]; department: string; accessPoint: string };
+type ReportFilters = { employeeTokens: string[]; departments: string[]; accessPoint: string };
 type ReportDateRange = { from: string; to: string };
-const emptyFilters: ReportFilters = { employeeTokens: [], department: '', accessPoint: '' };
+const emptyFilters: ReportFilters = { employeeTokens: [], departments: [], accessPoint: '' };
 
 const reportCards: Array<{ kind: ReportKind; icon: string; title: string; description: string }> = [
   { kind: 'access', icon: '◷', title: 'Журнал проходів', description: 'Входи, виходи, дозволи та відмови за вибраний період.' },
@@ -60,15 +60,43 @@ function CompactSelect({ ariaLabel, value, options, onChange }: { ariaLabel: str
   </details>;
 }
 
-function PersonnelMultiSelect({ department, personnel, selectedTokens, onChange }: { department: string; personnel: PersonnelRecord[]; selectedTokens: string[]; onChange: (tokens: string[]) => void }) {
+function DepartmentMultiSelect({ departments, selectedDepartments, onChange }: { departments: string[]; selectedDepartments: string[]; onChange: (departments: string[]) => void }) {
+  const reference = useRef<HTMLDetailsElement>(null);
+  const [query, setQuery] = useState('');
+  const visibleDepartments = departments.filter((department) => !query.trim() || department.toLocaleLowerCase('uk-UA').includes(query.trim().toLocaleLowerCase('uk-UA')));
+  const label = selectedDepartments.length === 0 ? 'Усі відділи' : selectedDepartments.length === 1 ? selectedDepartments[0] : `Обрано відділів: ${selectedDepartments.length}`;
+  useEffect(() => {
+    const close = (event: PointerEvent) => {
+      if (!reference.current?.contains(event.target as Node)) reference.current?.removeAttribute('open');
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, []);
+  return <details className="personnel-multiselect department-multiselect" ref={reference}>
+    <summary aria-label="Відділи"><span title={label}>{label}</span><b>{selectedDepartments.length || '⌄'}</b></summary>
+    <div className="personnel-multiselect-menu">
+      <input aria-label="Пошук відділу" autoComplete="off" onChange={(event) => setQuery(event.target.value)} placeholder="Пошук за назвою відділу" type="search" value={query} />
+      <div className="personnel-multiselect-meta"><span>{selectedDepartments.length ? `Обрано: ${selectedDepartments.length}` : 'Не обрано — будуть усі'}</span>{selectedDepartments.length > 0 && <button onClick={() => onChange([])} type="button">Очистити</button>}</div>
+      <div className="personnel-multiselect-options" role="listbox" aria-multiselectable="true">
+        {visibleDepartments.map((department) => {
+          const selected = selectedDepartments.includes(department);
+          return <button aria-selected={selected} className={selected ? 'selected' : ''} key={department} onClick={() => onChange(selected ? selectedDepartments.filter((item) => item !== department) : [...selectedDepartments, department])} role="option" type="button"><i>{selected ? '✓' : ''}</i><span><b>{department}</b></span></button>;
+        })}
+        {visibleDepartments.length === 0 && <p>Відділів за цим запитом не знайдено.</p>}
+      </div>
+    </div>
+  </details>;
+}
+
+function PersonnelMultiSelect({ departments, personnel, selectedTokens, onChange }: { departments: string[]; personnel: PersonnelRecord[]; selectedTokens: string[]; onChange: (tokens: string[]) => void }) {
   const reference = useRef<HTMLDetailsElement>(null);
   const [query, setQuery] = useState('');
   const visiblePersonnel = useMemo(() => {
     const term = query.trim().toLocaleLowerCase('uk-UA');
-    return personnel.filter((person) => (!department || person.department === department) && (!term || `${person.name} ${person.position} ${person.identifier}`.toLocaleLowerCase('uk-UA').includes(term)));
-  }, [department, personnel, query]);
+    return personnel.filter((person) => (departments.length === 0 || departments.includes(person.department)) && (!term || `${person.name} ${person.position} ${person.identifier}`.toLocaleLowerCase('uk-UA').includes(term)));
+  }, [departments, personnel, query]);
   const selectedPeople = personnel.filter((person) => selectedTokens.includes(person.token));
-  const label = selectedPeople.length === 0 ? (department ? 'Усі працівники відділу' : 'Усі працівники') : selectedPeople.length === 1 ? selectedPeople[0].name : `Обрано працівників: ${selectedPeople.length}`;
+  const label = selectedPeople.length === 0 ? (departments.length ? 'Усі працівники відділів' : 'Усі працівники') : selectedPeople.length === 1 ? selectedPeople[0].name : `Обрано працівників: ${selectedPeople.length}`;
   useEffect(() => {
     const close = (event: PointerEvent) => {
       if (!reference.current?.contains(event.target as Node)) reference.current?.removeAttribute('open');
@@ -155,7 +183,6 @@ export function ReportsPage() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<ReportExportFormat>('pdf');
   const [quickPeriod, setQuickPeriod] = useState('');
-  const [departmentSearch, setDepartmentSearch] = useState('');
   const personnelQuery = useQuery({ queryKey: ['personnel'], queryFn: getPersonnel, staleTime: 30_000, enabled: reportModalOpen || exportModalOpen });
   const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: getPlanCatalog, staleTime: 60_000, enabled: reportModalOpen });
   const eventsQuery = useQuery({
@@ -168,17 +195,13 @@ export function ReportsPage() {
   const reportRows = useMemo(() => rows.filter((row) => {
     if (kind === 'security' && !isSecurityEvent(row.eventName)) return false;
     if (filters.employeeTokens.length > 0 && (!row.employeeToken || !filters.employeeTokens.includes(row.employeeToken))) return false;
-    if (filters.department && row.department !== filters.department) return false;
+    if (filters.departments.length > 0 && !filters.departments.includes(row.department)) return false;
     if (filters.accessPoint && row.accessPoint !== filters.accessPoint) return false;
     return true;
   }), [filters, kind, rows]);
   const activeReport = reportCards.find((item) => item.kind === kind)!;
   const personnel = personnelQuery.data?.personnel ?? [];
   const departments = personnelQuery.data?.departments ?? [];
-  const filteredDepartments = useMemo(() => {
-    const term = departmentSearch.trim().toLocaleLowerCase('uk-UA');
-    return departments.filter((department) => !term || department.toLocaleLowerCase('uk-UA').includes(term));
-  }, [departmentSearch, departments]);
   const invalidDraftRange = !draftRange.from || !draftRange.to || new Date(draftRange.from).getTime() > new Date(draftRange.to).getTime();
   const accessPoints = useMemo(() => {
     const catalogItems = catalogQuery.data ? [...catalogQuery.data.doors, ...catalogQuery.data.devices, ...catalogQuery.data.inputs] : [];
@@ -190,7 +213,6 @@ export function ReportsPage() {
     setDraftKind(kind);
     setDraftRange(range);
     setDraftFilters(filters);
-    setDepartmentSearch('');
     setQuickPeriod('');
     setReportModalOpen(true);
   };
@@ -209,7 +231,6 @@ export function ReportsPage() {
     setDraftKind('access');
     setDraftRange(rangeForHours(24));
     setDraftFilters(nextFilters);
-    setDepartmentSearch('');
     setQuickPeriod('');
     setReportModalOpen(true);
     setSearchParams({}, { replace: true });
@@ -220,7 +241,7 @@ export function ReportsPage() {
   const createReportDocument = () => {
     const selectedFilters = [
       filters.employeeTokens.length > 0 && `Працівники: ${personnel.filter((person) => filters.employeeTokens.includes(person.token)).map((person) => person.name).join(', ')}`,
-      filters.department && `Відділ: ${filters.department}`,
+      filters.departments.length > 0 && `Відділи: ${filters.departments.join(', ')}`,
       filters.accessPoint && `Місце: ${filters.accessPoint}`,
     ].filter(Boolean).join(' · ') || 'Без додаткових фільтрів';
     const tableRows = reportRows.map((row) => {
@@ -264,7 +285,7 @@ export function ReportsPage() {
       <section aria-labelledby="reports-library-title" className="reports-library">
         <div className="reports-library-heading"><div><p className="eyebrow">ГОТОВІ ШАБЛОНИ</p><h2 id="reports-library-title">Доступні звіти</h2><span>Оберіть звіт, задайте параметри та завантажте його у потрібному форматі.</span></div></div>
         <div className="report-cards" aria-label="Тип звіту">
-        {reportCards.map((item) => <button className={kind === item.kind ? 'report-card active' : 'report-card'} key={item.kind} onClick={() => { setKind(item.kind); setDraftKind(item.kind); setDraftRange(range); setDraftFilters(filters); setDepartmentSearch(''); setQuickPeriod(''); setReportModalOpen(true); }} type="button">
+        {reportCards.map((item) => <button className={kind === item.kind ? 'report-card active' : 'report-card'} key={item.kind} onClick={() => { setKind(item.kind); setDraftKind(item.kind); setDraftRange(range); setDraftFilters(filters); setQuickPeriod(''); setReportModalOpen(true); }} type="button">
           <i>{item.icon}</i><span><b>{item.title}</b><small>{item.description}</small></span>
         </button>)}
         </div>
@@ -277,12 +298,11 @@ export function ReportsPage() {
             <label>Швидкий період<CompactSelect ariaLabel="Швидкий період" onChange={(value) => { setQuickPeriod(value); if (value) setDraftRange(rangeForHours(Number(value))); }} options={[{ value: '', label: 'Власний діапазон' }, { value: '24', label: 'Останні 24 години' }, { value: '72', label: 'Останні 3 дні' }, { value: '168', label: 'Останні 7 днів' }]} value={quickPeriod} /></label>
             <DateTimePicker label="Від" onChange={(value) => { setQuickPeriod(''); setDraftRange((current) => ({ ...current, from: value })); }} value={draftRange.from} />
             <DateTimePicker label="До" onChange={(value) => { setQuickPeriod(''); setDraftRange((current) => ({ ...current, to: value })); }} value={draftRange.to} />
-            <label>Пошук відділу<input onChange={(event) => setDepartmentSearch(event.target.value)} placeholder="Назва відділу" type="search" value={departmentSearch} /></label>
-            <label>Відділ<CompactSelect ariaLabel="Відділ" onChange={(value) => setDraftFilters((current) => ({ ...current, department: value, employeeTokens: current.employeeTokens.filter((token) => !value || personnel.find((person) => person.token === token)?.department === value) }))} options={[{ value: '', label: 'Усі відділи' }, ...filteredDepartments.map((department) => ({ value: department, label: department }))]} value={draftFilters.department} /></label>
-            <label className="wide">Працівники<PersonnelMultiSelect department={draftFilters.department} onChange={(employeeTokens) => setDraftFilters((current) => ({ ...current, employeeTokens }))} personnel={personnel} selectedTokens={draftFilters.employeeTokens} /></label>
+            <label className="wide">Відділи<DepartmentMultiSelect departments={departments} onChange={(departments) => setDraftFilters((current) => ({ ...current, departments, employeeTokens: current.employeeTokens.filter((token) => departments.length === 0 || departments.includes(personnel.find((person) => person.token === token)?.department ?? '')) }))} selectedDepartments={draftFilters.departments} /></label>
+            <label className="wide">Працівники<PersonnelMultiSelect departments={draftFilters.departments} onChange={(employeeTokens) => setDraftFilters((current) => ({ ...current, employeeTokens }))} personnel={personnel} selectedTokens={draftFilters.employeeTokens} /></label>
             <label className="wide">Точка доступу / місце<CompactSelect ariaLabel="Точка доступу / місце" onChange={(value) => setDraftFilters((current) => ({ ...current, accessPoint: value }))} options={[{ value: '', label: 'Усі точки доступу' }, ...accessPoints.map((accessPoint) => ({ value: accessPoint, label: accessPoint }))]} value={draftFilters.accessPoint} /></label>
           </div>
-          <footer className="report-modal-footer"><button className="report-modal-reset" onClick={() => { setDraftFilters(emptyFilters); setDepartmentSearch(''); }} type="button">Очистити фільтри</button><span />{invalidDraftRange && <small className="report-range-error">Перевірте дату й час діапазону.</small>}<button className="personnel-cancel" onClick={() => setReportModalOpen(false)} type="button">Скасувати</button><button className="report-export" disabled={invalidDraftRange} onClick={generateReport} type="button">Сформувати</button></footer>
+          <footer className="report-modal-footer"><button className="report-modal-reset" onClick={() => setDraftFilters(emptyFilters)} type="button">Очистити фільтри</button><span />{invalidDraftRange && <small className="report-range-error">Перевірте дату й час діапазону.</small>}<button className="personnel-cancel" onClick={() => setReportModalOpen(false)} type="button">Скасувати</button><button className="report-export" disabled={invalidDraftRange} onClick={generateReport} type="button">Сформувати</button></footer>
         </section>
       </div>}
       {exportModalOpen && <div className="report-modal-backdrop" onMouseDown={() => setExportModalOpen(false)} role="presentation">
