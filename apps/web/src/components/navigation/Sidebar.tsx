@@ -6,12 +6,8 @@ import { useIntegrationStore } from '../../store';
 const navigation = [
   ['⌘', 'Плани', '/plans'],
   ['◷', 'Події', '/events'],
-  ['▣', 'Точки доступу', '/access-points'],
-  ['◈', 'Пристрої', '/devices'],
   ['♙', 'Персонал', '/personnel'],
   ['▤', 'Звіти', '/reports'],
-  ['▤', 'Журнал аудиту', '/audit'],
-  ['⚙', 'Інтеграція', '/integration'],
 ] as const;
 
 export function Sidebar() {
