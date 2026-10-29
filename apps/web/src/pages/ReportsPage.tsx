@@ -39,7 +39,7 @@ function CompactSelect({ ariaLabel, value, options, onChange }: { ariaLabel: str
     return () => document.removeEventListener('pointerdown', close);
   }, []);
   return <details className="compact-select" ref={reference}>
-    <summary aria-label={ariaLabel}><span title={selected?.label}>{selected?.label}</span><b>⌄</b></summary>
+    <summary aria-label={ariaLabel}><span title={selected?.label}>{selected?.label}</span></summary>
     <div className="compact-select-menu" role="listbox">
       {options.map((option) => <button aria-selected={option.value === value} className={option.value === value ? 'selected' : ''} key={option.value || '__empty'} onClick={(event) => { onChange(option.value); event.currentTarget.closest('details')?.removeAttribute('open'); }} role="option" type="button" title={option.label}>{option.label}</button>)}
     </div>
@@ -59,7 +59,7 @@ function DepartmentMultiSelect({ departments, selectedDepartments, onChange }: {
     return () => document.removeEventListener('pointerdown', close);
   }, []);
   return <details className="personnel-multiselect department-multiselect" ref={reference}>
-    <summary aria-label="Відділи"><span title={label}>{label}</span><b>{selectedDepartments.length || '⌄'}</b></summary>
+    <summary aria-label="Відділи"><span title={label}>{label}</span>{selectedDepartments.length > 0 && <b>{selectedDepartments.length}</b>}</summary>
     <div className="personnel-multiselect-menu">
       <input aria-label="Пошук відділу" autoComplete="off" onChange={(event) => setQuery(event.target.value)} placeholder="Пошук за назвою відділу" type="search" value={query} />
       <div className="personnel-multiselect-meta"><span>{selectedDepartments.length ? `Обрано: ${selectedDepartments.length}` : 'Не обрано — будуть усі'}</span>{selectedDepartments.length > 0 && <button onClick={() => onChange([])} type="button">Очистити</button>}</div>
@@ -91,7 +91,7 @@ function PersonnelMultiSelect({ departments, personnel, selectedTokens, onChange
     return () => document.removeEventListener('pointerdown', close);
   }, []);
   return <details className="personnel-multiselect" ref={reference}>
-    <summary aria-label="Працівники"><span title={label}>{label}</span><b>{selectedPeople.length || '⌄'}</b></summary>
+    <summary aria-label="Працівники"><span title={label}>{label}</span>{selectedPeople.length > 0 && <b>{selectedPeople.length}</b>}</summary>
     <div className="personnel-multiselect-menu">
       <input aria-label="Пошук працівника" autoComplete="off" onChange={(event) => setQuery(event.target.value)} placeholder="Пошук за ПІБ або ідентифікатором" type="search" value={query} />
       <div className="personnel-multiselect-meta"><span>{selectedPeople.length ? `Обрано: ${selectedPeople.length}` : 'Не обрано — будуть усі'}</span>{selectedPeople.length > 0 && <button onClick={() => onChange([])} type="button">Очистити</button>}</div>
@@ -117,6 +117,7 @@ function dateFromInput(value: string) {
 }
 
 function DateTimePicker({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const reference = useRef<HTMLDivElement>(null);
   const selectedDate = dateFromInput(value);
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
@@ -136,7 +137,9 @@ function DateTimePicker({ label, value, onChange }: { label: string; value: stri
     next.setHours(hours, minutes, 0, 0);
     onChange(dateTimeInputValue(next));
   };
-  return <div className="report-date-field">
+  return <div className="report-date-field" onBlur={(event) => {
+    if (!reference.current?.contains(event.relatedTarget as Node)) setOpen(false);
+  }} ref={reference}>
     <span>{label}</span>
     <div className="report-date-controls">
       <button aria-expanded={open} className="report-date-trigger" onClick={() => { setViewDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1)); setOpen((current) => !current); }} type="button"><span>{selectedDate.toLocaleDateString('uk-UA', { day: '2-digit', month: 'short', year: 'numeric' })}</span><b>▣</b></button>

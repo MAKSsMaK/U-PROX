@@ -980,22 +980,23 @@ pre {
 .report-calendar-days button.selected { border-color: #2fb8f4; background: #087cb8; color: #fff; box-shadow: 0 0 0 1px #47c9ff66; }
 .report-calendar-today { width: 100%; margin-top: 9px; border: 0; border-top: 1px solid #25455f; padding: 9px 0 1px; background: transparent; color: #65cdf8; font: 700 10px Manrope; cursor: pointer; }
 .compact-select { position: relative; min-width: 0; }
-.compact-select summary { display: flex; box-sizing: border-box; width: 100%; height: 40px; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #345674; border-radius: 6px; padding: 0 10px; background: #0d2236; color: #e7f2ff; cursor: pointer; font: 600 12px Manrope; list-style: none; }
+.compact-select summary { position: relative; display: flex; box-sizing: border-box; width: 100%; height: 40px; align-items: center; gap: 8px; border: 1px solid #345674; border-radius: 6px; padding: 0 36px 0 10px; background: #0d2236; color: #e7f2ff; cursor: pointer; font: 600 12px Manrope; list-style: none; }
 .compact-select summary::-webkit-details-marker { display: none; }
 .compact-select summary:hover, .compact-select[open] summary { border-color: #39aee4; background: #102d45; }
 .compact-select summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.compact-select summary b { display: grid; width: 18px; height: 18px; flex: 0 0 18px; place-items: center; color: #62c8f8; font-size: 15px; line-height: 1; }
+.compact-select summary::after, .personnel-multiselect summary::after { position: absolute; top: 50%; right: 15px; width: 7px; height: 7px; border-right: 2px solid #62c8f8; border-bottom: 2px solid #62c8f8; content: ''; transform: translateY(-70%) rotate(45deg); transition: transform .16s ease; pointer-events: none; }
+.compact-select[open] summary::after, .personnel-multiselect[open] summary::after { transform: translateY(-25%) rotate(225deg); }
 .compact-select-menu { position: absolute; z-index: 14; top: calc(100% + 6px); right: 0; left: 0; max-height: 192px; overflow-y: auto; border: 1px solid #39779d; border-radius: 7px; padding: 4px; background: #0a1c2d; box-shadow: 0 15px 34px #000c; scrollbar-color: #4e9bc5 #091827; scrollbar-width: thin; }
 .compact-select-menu::-webkit-scrollbar { width: 8px; }.compact-select-menu::-webkit-scrollbar-track { background: #091827; }.compact-select-menu::-webkit-scrollbar-thumb { border: 2px solid #091827; border-radius: 8px; background: #4e9bc5; }
 .compact-select-menu button { display: block; width: 100%; overflow: hidden; border: 0; border-radius: 4px; padding: 8px; background: transparent; color: #cae4f5; cursor: pointer; font: 600 11px Manrope; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .compact-select-menu button:hover, .compact-select-menu button.selected { background: #145070; color: #fff; }
 .report-modal-fields > label:nth-of-type(6) .compact-select-menu, .report-modal-fields > label:nth-of-type(7) .compact-select-menu { top: auto; bottom: calc(100% + 6px); }
 .personnel-multiselect { position: relative; min-width: 0; }
-.personnel-multiselect summary { display: flex; box-sizing: border-box; width: 100%; height: 40px; align-items: center; justify-content: space-between; gap: 9px; border: 1px solid #345674; border-radius: 6px; padding: 0 10px; background: #0d2236; color: #e7f2ff; cursor: pointer; font: 600 12px Manrope; list-style: none; }
+.personnel-multiselect summary { position: relative; display: flex; box-sizing: border-box; width: 100%; height: 40px; align-items: center; gap: 9px; border: 1px solid #345674; border-radius: 6px; padding: 0 42px 0 10px; background: #0d2236; color: #e7f2ff; cursor: pointer; font: 600 12px Manrope; list-style: none; }
 .personnel-multiselect summary::-webkit-details-marker { display: none; }
 .personnel-multiselect summary:hover, .personnel-multiselect[open] summary { border-color: #39aee4; background: #102d45; }
 .personnel-multiselect summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.personnel-multiselect summary b { display: grid; min-width: 20px; height: 20px; place-items: center; border-radius: 10px; background: #135071; color: #bdeaff; font-size: 10px; }
+.personnel-multiselect summary b { display: grid; min-width: 20px; height: 20px; margin-left: auto; place-items: center; border-radius: 10px; background: #135071; color: #bdeaff; font-size: 10px; }
 .personnel-multiselect-menu { position: absolute; z-index: 15; top: calc(100% + 6px); right: 0; left: 0; overflow: hidden; border: 1px solid #39779d; border-radius: 7px; background: #0a1c2d; box-shadow: 0 15px 34px #000c; }
 .personnel-multiselect-menu > input { box-sizing: border-box; width: calc(100% - 16px); height: 34px; margin: 8px; border: 1px solid #315d7d; border-radius: 5px; padding: 0 9px; background: #102b40; color: #e8f6ff; font: 600 11px Manrope; }
 .personnel-multiselect-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px 7px; color: #87a9c1; font-size: 10px; }

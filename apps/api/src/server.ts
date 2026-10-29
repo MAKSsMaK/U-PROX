@@ -812,9 +812,9 @@ async function wordReportHtml(input: z.infer<typeof reportExportSchema>, rows: R
       ? `<img class="employee-photo" alt="${htmlEscape(employee.employee)}" src="data:${image.contentType};base64,${image.content.toString('base64')}">`
       : `<span class="employee-photo fallback">${htmlEscape(employee.employee.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '—')}</span>`;
     const events = employeeEvents.map((event) => `<tr><td>${htmlEscape(event.occurredAt)}</td><td>${htmlEscape(event.accessPoint)}</td><td>${htmlEscape(event.eventName)}</td><td>${htmlEscape(event.cardCode)}</td></tr>`).join('');
-    sections.push(`<section class="employee-section"><header>${photo}<div><h2>${htmlEscape(employee.employee)}</h2><p>${htmlEscape(employee.department)} · ${htmlEscape(employee.position)}</p></div></header><table><thead><tr><th>Дата та час</th><th>Місце</th><th>Подія</th><th>Ідентифікатор</th></tr></thead><tbody>${events}</tbody></table></section>`);
+    sections.push(`<section class="employee-section"><header>${photo}<div><h2>${htmlEscape(employee.employee)}</h2><p><b>Відділ:</b> ${htmlEscape(employee.department)}</p><p><b>Посада:</b> ${htmlEscape(employee.position)}</p></div></header><table><thead><tr><th>Дата та час</th><th>Місце</th><th>Подія</th><th>Ідентифікатор</th></tr></thead><tbody>${events}</tbody></table></section>`);
   }
-  return `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>${htmlEscape(reportTitle(input.kind))}</title><style>body{font-family:Arial,sans-serif;color:#17212b;margin:28px}h1{font-size:23px}.summary{margin:18px 0;padding:12px;background:#edf6fa;border-left:4px solid #007db9}.employee-section{break-before:page;page-break-before:always;margin-top:24px}.employee-section:first-of-type{break-before:auto;page-break-before:auto}.employee-section header{display:flex;align-items:center;gap:14px;margin-bottom:10px;padding:11px;background:#f1f7fa;border:1px solid #bed0db}.employee-section h2{margin:0;font-size:17px}.employee-section p{margin:4px 0 0;color:#4b5b68;font-size:12px}.employee-photo{width:54px;height:54px;object-fit:cover;border:1px solid #aabdc9;border-radius:50%;background:#fff}.fallback{display:inline-grid;place-items:center;font-weight:700}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#09304b;color:#fff;text-align:left}th,td{padding:8px;border:1px solid #c9d5de;vertical-align:top}tr:nth-child(even){background:#f5f8fa}</style></head><body><h1>${htmlEscape(reportTitle(input.kind))}</h1><p>Період: ${htmlEscape(reportPeriod(input))}</p><p>Сформовано: ${htmlEscape(reportDate(Date.now()))}</p><div class="summary"><b>Подій у вибірці: ${rows.length}</b><br>${htmlEscape(reportFilterSummary(input))}</div>${sections.join('')}</body></html>`;
+  return `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>${htmlEscape(reportTitle(input.kind))}</title><style>body{font-family:Arial,sans-serif;color:#17212b;margin:28px}h1{font-size:23px}.summary{margin:18px 0;padding:12px;background:#edf6fa;border-left:4px solid #007db9}.employee-section{break-before:page;page-break-before:always;margin-top:30px}.employee-section:first-of-type{break-before:auto;page-break-before:auto}.employee-section header{display:flex;align-items:center;gap:14px;margin:22px 0 15px;padding:12px;background:#f1f7fa;border:1px solid #bed0db}.employee-section h2{margin:0 0 7px;font-size:17px}.employee-section p{margin:3px 0;color:#4b5b68;font-size:12px}.employee-section p b{color:#17212b}.employee-photo{width:54px;height:54px;object-fit:cover;border:1px solid #aabdc9;border-radius:50%;background:#fff}.fallback{display:inline-grid;place-items:center;font-weight:700}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#09304b;color:#fff;text-align:left}th,td{padding:8px;border:1px solid #c9d5de;vertical-align:top}tr:nth-child(even){background:#f5f8fa}</style></head><body><h1>${htmlEscape(reportTitle(input.kind))}</h1><p>Період: ${htmlEscape(reportPeriod(input))}</p><p>Сформовано: ${htmlEscape(reportDate(Date.now()))}</p><div class="summary"><b>Подій у вибірці: ${rows.length}</b><br>${htmlEscape(reportFilterSummary(input))}</div>${sections.join('')}</body></html>`;
 }
 
 async function renderPdfReport(document: PDFKit.PDFDocument, input: z.infer<typeof reportExportSchema>, rows: ReportEventRow[]) {
@@ -825,6 +825,7 @@ async function renderPdfReport(document: PDFKit.PDFDocument, input: z.infer<type
   document.font('Noto').fillColor('#17212b').fontSize(21).text(reportTitle(input.kind));
   document.moveDown(0.45).fontSize(10).fillColor('#4b5b68').text(`Період: ${reportPeriod(input)}`).text(`Сформовано: ${reportDate(Date.now())}`);
   document.moveDown(1).fillColor('#0b698d').fontSize(11).text(`Подій у вибірці: ${rows.length}`).fontSize(9).fillColor('#4b5b68').text(reportFilterSummary(input));
+  document.moveDown(1.15);
   const columns = [90, 145, 180, 102];
   const headers = ['Дата та час', 'Місце', 'Подія', 'Ідентифікатор'];
   const drawTableHeader = () => {
@@ -843,15 +844,17 @@ async function renderPdfReport(document: PDFKit.PDFDocument, input: z.infer<type
     const employeeEvents = groups[groupIndex];
     const employee = employeeEvents[0];
     if (groupIndex > 0) addPage();
-    ensureSpace(70);
+    ensureSpace(96);
     const headerY = document.y;
     const image = await imageForReport(employee);
     if (image && ['image/jpeg', 'image/png'].includes(image.contentType)) {
       try { document.image(image.content, document.page.margins.left, headerY, { fit: [48, 48] }); } catch { /* Invalid image data is replaced by text below. */ }
     }
-    document.fontSize(15).fillColor('#102d43').text(employee.employee, document.page.margins.left + 62, headerY, { width: 430 });
-    document.moveDown(0.25).fontSize(9).fillColor('#4b5b68').text(`${employee.department} · ${employee.position}`, document.page.margins.left + 62, headerY + 23, { width: 430 });
-    document.y = headerY + 60;
+    const detailsX = document.page.margins.left + 62;
+    document.fontSize(15).fillColor('#102d43').text(employee.employee, detailsX, headerY, { width: 430 });
+    document.fontSize(9).fillColor('#4b5b68').text(`Відділ: ${employee.department}`, detailsX, headerY + 25, { width: 430 });
+    document.text(`Посада: ${employee.position}`, detailsX, headerY + 40, { width: 430 });
+    document.y = headerY + 76;
     drawTableHeader();
     for (let eventIndex = 0; eventIndex < employeeEvents.length; eventIndex += 1) {
       const event = employeeEvents[eventIndex];
