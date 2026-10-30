@@ -33,9 +33,10 @@ export async function getEvents({ hours = 24, limit = 50, offset = 0, from, to, 
 export type PersonnelPresence = Record<string, { state: 'present' | 'away'; occurredAt: number; eventName: string }>;
 
 export async function getPersonnelPresence() {
-  const response = await fetch('/api/personnel/presence?accessPoint=%D0%A2%D1%83%D1%80%D0%BD%D1%96%D0%BA%D0%B5%D1%82%20%D0%BF%D0%B5%D1%80%D1%81%D0%BE%D0%BD%D0%B0%D0%BB&hours=168');
+  const params = new URLSearchParams({ accessPoint: 'персонал' });
+  const response = await fetch(`/api/personnel/presence?${params}`);
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
-  return response.json() as Promise<{ accessPoint: string; hours: number; refreshedAt: number; presence: PersonnelPresence }>;
+  return response.json() as Promise<{ accessPoint: string; from: number; refreshedAt: number; presence: PersonnelPresence }>;
 }
 
 export type ReportExportRequest = {

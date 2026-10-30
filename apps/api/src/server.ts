@@ -511,8 +511,7 @@ const reportExportSchema = z.object({
   if (value.from > value.to) context.addIssue({ code: z.ZodIssueCode.custom, message: 'The event range start must be before its end' });
 });
 const presenceQuerySchema = z.object({
-  accessPoint: z.string().trim().min(1).max(300).default('Турнікет персонал'),
-  hours: z.coerce.number().int().min(1).max(168).default(168),
+  accessPoint: z.string().trim().min(1).max(300).default('персонал'),
 });
 
 function issuedMilliseconds(value: unknown) {
@@ -673,22 +672,38 @@ function passageState(eventName: string) {
   return undefined;
 }
 
-async function getPersonnelPresence(accessPoint: string, hours: number) {
-  const key = `${accessPoint.toLocaleLowerCase('uk-UA')}:${hours}`;
+function startOfCurrentDay() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today.getTime();
+}
+
+function normalizedPersonName(name: string) {
+  return name.trim().toLocaleLowerCase('uk-UA').replace(/\s+/g, ' ');
+}
+
+async function getPersonnelPresence(accessPoint: string) {
+  const from = startOfCurrentDay();
+  const key = `${accessPoint.toLocaleLowerCase('uk-UA')}:${from}`;
   const cached = presenceCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   if (cached?.pending) return cached.pending;
   const pending = (async () => {
-    const from = Date.now() - hours * 60 * 60_000;
     const events = (await getEventsRange(from, Date.now(), UPROX_REPORT_MAX_EVENTS)).events;
+    const employeeTokensByName = new Map(
+      ((await getEmployeeDirectory()) as UproxxEmployee[]).flatMap((employee) =>
+        employee.Token === undefined || !employee.Name ? [] : [[normalizedPersonName(employee.Name), String(employee.Token)] as const],
+      ),
+    );
     const point = accessPoint.toLocaleLowerCase('uk-UA');
     const presence: Record<string, PresenceRecord> = {};
     for (const event of events) {
       const row = reportRow(event);
-      if (!row.employeeToken || !row.accessPoint.toLocaleLowerCase('uk-UA').includes(point)) continue;
+      const employeeToken = row.employeeToken ?? employeeTokensByName.get(normalizedPersonName(row.employee));
+      if (!employeeToken || !row.accessPoint.toLocaleLowerCase('uk-UA').includes(point)) continue;
       const state = passageState(row.eventName);
-      if (!state || presence[row.employeeToken]) continue;
-      presence[row.employeeToken] = { state, occurredAt: row.issued, eventName: row.eventName };
+      if (!state || presence[employeeToken]) continue;
+      presence[employeeToken] = { state, occurredAt: row.issued, eventName: row.eventName };
     }
     return presence;
   })();
@@ -960,9 +975,9 @@ app.get('/api/events', async (request) => {
 });
 
 app.get('/api/personnel/presence', async (request) => {
-  const { accessPoint, hours } = presenceQuerySchema.parse(request.query);
-  const presence = await getPersonnelPresence(accessPoint, hours);
-  return { accessPoint, hours, refreshedAt: Date.now(), presence };
+  const { accessPoint } = presenceQuerySchema.parse(request.query);
+  const presence = await getPersonnelPresence(accessPoint);
+  return { accessPoint, from: startOfCurrentDay(), refreshedAt: Date.now(), presence };
 });
 
 app.get('/api/images/:token', async (request, reply) => {
