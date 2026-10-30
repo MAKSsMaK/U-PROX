@@ -146,7 +146,7 @@ export function PersonnelPage() {
                 {(['all', 'present', 'away', 'unknown'] as const).map((state) => <button aria-pressed={presenceFilter === state} className={presenceFilter === state ? 'active' : ''} key={state} onClick={() => setPresenceFilter(state)} type="button">{state === 'all' ? 'Усі' : presenceLabel(state)} <b>{presenceCounts[state]}</b></button>)}
               </div>
             </div>
-            <p className="personnel-presence-note">Статус визначається за останньою подією «Вхід здійснено» або «Вихід здійснено» на турнікеті персоналу від початку поточного дня.</p>
+            <p className="personnel-presence-note">Статус визначається за останньою подією входу або виходу на турнікеті персоналу чи у внутрішньому дворі від початку поточного дня.</p>
             {directoryQuery.isError ? <div className="personnel-error">Не вдалося отримати список персоналу: {directoryQuery.error.message}</div> : (
               <div className="personnel-table-wrap">
                 <table className="personnel-table">

@@ -33,7 +33,7 @@ export async function getEvents({ hours = 24, limit = 50, offset = 0, from, to, 
 export type PersonnelPresence = Record<string, { state: 'present' | 'away'; occurredAt: number; eventName: string }>;
 
 export async function getPersonnelPresence() {
-  const params = new URLSearchParams({ accessPoint: 'персонал' });
+  const params = new URLSearchParams({ accessPoint: 'персонал,внутрішній двір' });
   const response = await fetch(`/api/personnel/presence?${params}`);
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
   return response.json() as Promise<{ accessPoint: string; from: number; refreshedAt: number; presence: PersonnelPresence }>;

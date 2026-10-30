@@ -511,7 +511,7 @@ const reportExportSchema = z.object({
   if (value.from > value.to) context.addIssue({ code: z.ZodIssueCode.custom, message: 'The event range start must be before its end' });
 });
 const presenceQuerySchema = z.object({
-  accessPoint: z.string().trim().min(1).max(300).default('персонал'),
+  accessPoint: z.string().trim().min(1).max(300).default('персонал,внутрішній двір'),
 });
 
 function issuedMilliseconds(value: unknown) {
@@ -686,7 +686,11 @@ function normalizedPersonName(name: string) {
 
 async function getPersonnelPresence(accessPoint: string) {
   const from = startOfCurrentDay();
-  const key = `${accessPoint.toLocaleLowerCase('uk-UA')}:${from}`;
+  const points = accessPoint
+    .split(',')
+    .map((point) => point.trim().toLocaleLowerCase('uk-UA'))
+    .filter(Boolean);
+  const key = `${points.join('|')}:${from}`;
   const cached = presenceCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   if (cached?.pending) return cached.pending;
@@ -697,12 +701,12 @@ async function getPersonnelPresence(accessPoint: string) {
         employee.Token === undefined || !employee.Name ? [] : [[normalizedPersonName(employee.Name), String(employee.Token)] as const],
       ),
     );
-    const point = accessPoint.toLocaleLowerCase('uk-UA');
     const presence: Record<string, PresenceRecord> = {};
     for (const event of events) {
       const row = reportRow(event);
       const employeeToken = row.employeeToken ?? employeeTokensByName.get(normalizedPersonName(row.employee));
-      if (!employeeToken || !row.accessPoint.toLocaleLowerCase('uk-UA').includes(point)) continue;
+      const eventPoint = row.accessPoint.toLocaleLowerCase('uk-UA');
+      if (!employeeToken || !points.some((point) => eventPoint.includes(point))) continue;
       const state = passageState(row.eventName);
       if (!state || presence[employeeToken]) continue;
       presence[employeeToken] = { state, occurredAt: row.issued, eventName: row.eventName };
