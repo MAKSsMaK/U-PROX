@@ -483,9 +483,14 @@ app.get('/api/plan/live/:token', async (request, reply) => {
 });
 const eventsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(10_000).default(50),
+  offset: z.coerce.number().int().min(0).max(99_900).default(0),
   hours: z.coerce.number().int().min(1).max(168).default(24),
   from: z.coerce.number().int().positive().optional(),
   to: z.coerce.number().int().positive().optional(),
+  search: z.string().trim().max(300).default(''),
+  department: z.string().trim().max(300).default(''),
+  accessPoint: z.string().trim().max(300).default(''),
+  eventMode: z.enum(['all', 'normal', 'security']).default('all'),
 }).superRefine((value, context) => {
   if ((value.from === undefined) !== (value.to === undefined)) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'Both from and to are required for a custom event range' });
@@ -651,7 +656,18 @@ function reportRow(event: EventRecord): ReportEventRow {
 
 function isSecurityReportEvent(name: string) {
   const value = name.toLocaleLowerCase('uk-UA');
-  return ['відмов', 'заборон', 'тривог', 'помил', 'заблок', 'несправ', 'авар'].some((term) => value.includes(term));
+  return ['відмов', 'заборон', 'невідом', 'тривог', 'помил', 'заблок', 'несправ', 'авар', 'обрив', 'зв’язок втрач', "зв'язок втрач", 'поперед', 'відчинен', 'відкрит', 'примус', 'tamper'].some((term) => value.includes(term));
+}
+
+function matchesEventFilter(event: EventRecord, input: z.infer<typeof eventsQuery>) {
+  if (!input.search && !input.department && !input.accessPoint && input.eventMode === 'all') return true;
+  const row = reportRow(event);
+  const search = input.search.toLocaleLowerCase('uk-UA');
+  if (search && !`${row.employee} ${row.cardCode} ${row.eventName}`.toLocaleLowerCase('uk-UA').includes(search)) return false;
+  if (input.department && input.department !== row.department) return false;
+  if (input.accessPoint && input.accessPoint !== row.accessPoint) return false;
+  const attention = isSecurityReportEvent(row.eventName);
+  return input.eventMode === 'all' || (input.eventMode === 'security' ? attention : !attention);
 }
 
 function collapseReportDuplicates(rows: ReportEventRow[]) {
@@ -880,13 +896,22 @@ async function renderPdfReport(document: PDFKit.PDFDocument, input: z.infer<type
 }
 
 app.get('/api/events', async (request) => {
-  const { limit, hours, from: requestedFrom, to: requestedTo } = eventsQuery.parse(request.query);
+  const input = eventsQuery.parse(request.query);
+  const { limit, offset, hours, from: requestedFrom, to: requestedTo } = input;
   const to = requestedTo ?? Date.now();
   const from = requestedFrom ?? to - hours * 60 * 60_000;
-  const range = await getEventsRange(from, to, limit);
+  // The live journal remains light: a large scan is only needed for an
+  // explicit field filter or when the user asks for older pages.
+  const hasDeepLookup = Boolean(input.search || input.department || input.accessPoint || offset > 0);
+  const range = await getEventsRange(from, to, hasDeepLookup ? UPROX_REPORT_MAX_EVENTS : limit);
+  const events = range.events.filter((event) => matchesEventFilter(event, input));
+  const page = events.slice(offset, offset + limit);
   return {
-    Event: range.events,
+    Event: page,
     refreshedAt: range.refreshedAt,
+    offset,
+    hasMore: hasDeepLookup ? offset + limit < events.length : range.events.length >= limit,
+    nextOffset: offset + page.length,
   };
 });
 
