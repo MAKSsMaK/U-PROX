@@ -4,6 +4,7 @@ import {
   createPersonnel,
   deletePersonnel,
   getPersonnel,
+  getPersonnelPresence,
   updatePersonnel,
   type PersonnelInput,
   type PersonnelIdentifier,
@@ -21,6 +22,13 @@ const identifierLabels: Record<PersonnelIdentifier['type'], string> = {
   card: 'Картка', key_fob: 'Брелок', bracelet: 'Браслет', face: 'Обличчя', fingerprint: 'Відбиток пальця',
 };
 const biometricTypes = new Set<PersonnelIdentifier['type']>(['face', 'fingerprint']);
+type PresenceFilter = 'all' | 'present' | 'away' | 'unknown';
+
+function presenceLabel(state: PresenceFilter) {
+  if (state === 'present') return 'У суді';
+  if (state === 'away') return 'Поза судом';
+  return 'Немає даних';
+}
 
 function createIdentifier(type: PersonnelIdentifier['type'] = 'card'): PersonnelIdentifier {
   return { id: `identifier-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`, type, value: '', validUntil: 'always' };
@@ -29,9 +37,17 @@ function createIdentifier(type: PersonnelIdentifier['type'] = 'card'): Personnel
 export function PersonnelPage() {
   const queryClient = useQueryClient();
   const directoryQuery = useQuery({ queryKey: ['personnel'], queryFn: getPersonnel, staleTime: 30_000 });
+  const presenceQuery = useQuery({
+    queryKey: ['personnel-presence'],
+    queryFn: getPersonnelPresence,
+    enabled: Boolean(directoryQuery.data?.personnel.length),
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
   const [department, setDepartment] = useState('');
   const [search, setSearch] = useState('');
   const [departmentSearch, setDepartmentSearch] = useState('');
+  const [presenceFilter, setPresenceFilter] = useState<PresenceFilter>('all');
   const [expandedDepartments, setExpandedDepartments] = useState<string[]>([]);
   const [editing, setEditing] = useState<PersonnelRecord>();
   const [isCreating, setIsCreating] = useState(false);
@@ -47,6 +63,13 @@ export function PersonnelPage() {
   });
   const personnel = directoryQuery.data?.personnel ?? [];
   const departments = directoryQuery.data?.departments ?? [];
+  const presence = presenceQuery.data?.presence ?? {};
+  const statusFor = (person: PersonnelRecord): PresenceFilter => presence[person.token]?.state ?? 'unknown';
+  const presenceCounts = useMemo(() => personnel.reduce<Record<PresenceFilter, number>>((counts, person) => {
+    counts[statusFor(person)] += 1;
+    counts.all += 1;
+    return counts;
+  }, { all: 0, present: 0, away: 0, unknown: 0 }), [personnel, presence]);
   const visibleDepartments = useMemo(() => {
     const normalized = departmentSearch.trim().toLocaleLowerCase('uk-UA');
     return departments.filter((item) => !normalized || item.toLocaleLowerCase('uk-UA').includes(normalized));
@@ -56,9 +79,10 @@ export function PersonnelPage() {
     return personnel.filter((person) => {
       const matchesDepartment = !department || person.department === department;
       const haystack = `${person.name} ${person.department} ${person.position} ${person.identifier}`.toLocaleLowerCase('uk-UA');
-      return matchesDepartment && (!normalized || haystack.includes(normalized));
+      const matchesPresence = presenceFilter === 'all' || statusFor(person) === presenceFilter;
+      return matchesDepartment && matchesPresence && (!normalized || haystack.includes(normalized));
     });
-  }, [department, personnel, search]);
+  }, [department, personnel, presence, presenceFilter, search]);
   const closeModal = () => { setEditing(undefined); setIsCreating(false); setForm(blankForm); };
   const toggleDepartment = (item: string) => setExpandedDepartments((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item]);
   const openCreate = () => { setEditing(undefined); setForm({ ...blankForm, department: department || departments[0] || '' }); setIsCreating(true); };
@@ -118,19 +142,24 @@ export function PersonnelPage() {
           <section className="personnel-list-panel">
             <div className="personnel-toolbar">
               <label className="personnel-search"><span>⌕</span><input onChange={(event) => setSearch(event.target.value)} placeholder="Пошук працівника: ПІБ або ідентифікатор" value={search} /></label>
+              <div aria-label="Присутність у суді" className="personnel-presence-toggle">
+                {(['all', 'present', 'away', 'unknown'] as const).map((state) => <button aria-pressed={presenceFilter === state} className={presenceFilter === state ? 'active' : ''} key={state} onClick={() => setPresenceFilter(state)} type="button">{state === 'all' ? 'Усі' : presenceLabel(state)} <b>{presenceCounts[state]}</b></button>)}
+              </div>
             </div>
+            <p className="personnel-presence-note">Статус визначається за останньою подією «Вхід здійснено» або «Вихід здійснено» на точці «Турнікет персонал» за останні 7 днів.</p>
             {directoryQuery.isError ? <div className="personnel-error">Не вдалося отримати список персоналу: {directoryQuery.error.message}</div> : (
               <div className="personnel-table-wrap">
                 <table className="personnel-table">
-                  <thead><tr><th>Працівник</th><th>Відділ</th><th>Посада</th><th>Ідентифікатор</th><th>Статус</th><th aria-label="Дії" /></tr></thead>
+                  <thead><tr><th>Працівник</th><th>Відділ</th><th>Посада</th><th>Ідентифікатор</th><th>Присутність</th><th>Статус</th><th aria-label="Дії" /></tr></thead>
                   <tbody>{visiblePersonnel.map((person) => <tr key={person.token} onDoubleClick={() => openEdit(person)}>
                     <td><div className="person-cell"><EventAvatar name={person.name} photoData={person.photoData ?? undefined} photoToken={person.photoToken} /><strong>{person.name}</strong></div></td>
                     <td>{person.department}</td><td>{person.position || '—'}</td><td className="personnel-identifier">{person.identifier || '—'}</td>
+                    <td><span className={`personnel-presence ${statusFor(person)}`} title={presence[person.token]?.eventName}>{statusFor(person) === 'unknown' ? '● Немає даних' : `● ${presenceLabel(statusFor(person))}`}</span></td>
                     <td><button className={`personnel-status ${person.active ? 'active' : ''}`} onClick={() => openEdit(person)} type="button">● {person.active ? 'Активний' : 'Неактивний'}</button></td>
                     <td><button aria-label={`Редагувати ${person.name}`} className="personnel-edit" onClick={() => openEdit(person)} type="button">⋮</button></td>
                   </tr>)}
-                  {!directoryQuery.isLoading && !visiblePersonnel.length && <tr><td className="personnel-empty" colSpan={6}>Нічого не знайдено.</td></tr>}
-                  {directoryQuery.isLoading && <tr><td className="personnel-empty" colSpan={6}>Завантажуємо персонал…</td></tr>}
+                  {!directoryQuery.isLoading && !visiblePersonnel.length && <tr><td className="personnel-empty" colSpan={7}>Нічого не знайдено.</td></tr>}
+                  {directoryQuery.isLoading && <tr><td className="personnel-empty" colSpan={7}>Завантажуємо персонал…</td></tr>}
                   </tbody>
                 </table>
               </div>

@@ -510,6 +510,10 @@ const reportExportSchema = z.object({
 }).superRefine((value, context) => {
   if (value.from > value.to) context.addIssue({ code: z.ZodIssueCode.custom, message: 'The event range start must be before its end' });
 });
+const presenceQuerySchema = z.object({
+  accessPoint: z.string().trim().min(1).max(300).default('Турнікет персонал'),
+  hours: z.coerce.number().int().min(1).max(168).default(168),
+});
 
 function issuedMilliseconds(value: unknown) {
   return Number(typeof value === 'string' ? (value.match(/\d+/)?.[0] ?? 0) : 0);
@@ -532,6 +536,9 @@ type ReportEventRow = {
   photoToken?: string;
 };
 const eventRangeCache = new Map<string, EventRange>();
+type PresenceRecord = { state: 'present' | 'away'; occurredAt: number; eventName: string };
+type PresenceSnapshot = { value: Record<string, PresenceRecord>; expiresAt: number; pending?: Promise<Record<string, PresenceRecord>> };
+const presenceCache = new Map<string, PresenceSnapshot>();
 
 function eventKey(event: EventRecord) {
   if (event.Token !== undefined && event.Token !== null) return `token:${event.Token}`;
@@ -657,6 +664,43 @@ function reportRow(event: EventRecord): ReportEventRow {
 function isSecurityReportEvent(name: string) {
   const value = name.toLocaleLowerCase('uk-UA');
   return ['відмов', 'заборон', 'невідом', 'тривог', 'помил', 'заблок', 'несправ', 'авар', 'обрив', 'зв’язок втрач', "зв'язок втрач", 'поперед', 'відчинен', 'відкрит', 'примус', 'tamper'].some((term) => value.includes(term));
+}
+
+function passageState(eventName: string) {
+  const name = eventName.toLocaleLowerCase('uk-UA');
+  if (name.includes('вхід здійснен')) return 'present' as const;
+  if (name.includes('вихід здійснен')) return 'away' as const;
+  return undefined;
+}
+
+async function getPersonnelPresence(accessPoint: string, hours: number) {
+  const key = `${accessPoint.toLocaleLowerCase('uk-UA')}:${hours}`;
+  const cached = presenceCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached?.pending) return cached.pending;
+  const pending = (async () => {
+    const from = Date.now() - hours * 60 * 60_000;
+    const events = (await getEventsRange(from, Date.now(), UPROX_REPORT_MAX_EVENTS)).events;
+    const point = accessPoint.toLocaleLowerCase('uk-UA');
+    const presence: Record<string, PresenceRecord> = {};
+    for (const event of events) {
+      const row = reportRow(event);
+      if (!row.employeeToken || !row.accessPoint.toLocaleLowerCase('uk-UA').includes(point)) continue;
+      const state = passageState(row.eventName);
+      if (!state || presence[row.employeeToken]) continue;
+      presence[row.employeeToken] = { state, occurredAt: row.issued, eventName: row.eventName };
+    }
+    return presence;
+  })();
+  presenceCache.set(key, { value: cached?.value ?? {}, expiresAt: 0, pending });
+  try {
+    const value = await pending;
+    presenceCache.set(key, { value, expiresAt: Date.now() + 30_000 });
+    return value;
+  } catch (error) {
+    presenceCache.delete(key);
+    throw error;
+  }
 }
 
 function matchesEventFilter(event: EventRecord, input: z.infer<typeof eventsQuery>) {
@@ -913,6 +957,12 @@ app.get('/api/events', async (request) => {
     hasMore: hasDeepLookup ? offset + limit < events.length : range.events.length >= limit,
     nextOffset: offset + page.length,
   };
+});
+
+app.get('/api/personnel/presence', async (request) => {
+  const { accessPoint, hours } = presenceQuerySchema.parse(request.query);
+  const presence = await getPersonnelPresence(accessPoint, hours);
+  return { accessPoint, hours, refreshedAt: Date.now(), presence };
 });
 
 app.get('/api/images/:token', async (request, reply) => {
