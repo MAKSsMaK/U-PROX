@@ -41,8 +41,8 @@ export function PersonnelPage() {
     queryKey: ['personnel-presence'],
     queryFn: getPersonnelPresence,
     enabled: Boolean(directoryQuery.data?.personnel.length),
-    staleTime: 30_000,
-    refetchInterval: 30_000,
+    staleTime: 10_000,
+    refetchInterval: 10_000,
   });
   const [department, setDepartment] = useState('');
   const [search, setSearch] = useState('');

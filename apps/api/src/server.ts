@@ -667,8 +667,10 @@ function isSecurityReportEvent(name: string) {
 
 function passageState(eventName: string) {
   const name = eventName.toLocaleLowerCase('uk-UA');
-  if (name.includes('вхід здійснен')) return 'present' as const;
-  if (name.includes('вихід здійснен')) return 'away' as const;
+  // Depending on the controller and U-PROX configuration, a successful pass
+  // may be reported as either "дозволений" or "здійснено".
+  if (name.includes('вхід здійснен') || name.includes('вхід дозволен') || name.includes('доступ надан')) return 'present' as const;
+  if (name.includes('вихід здійснен') || name.includes('вихід дозволен')) return 'away' as const;
   return undefined;
 }
 
@@ -710,7 +712,7 @@ async function getPersonnelPresence(accessPoint: string) {
   presenceCache.set(key, { value: cached?.value ?? {}, expiresAt: 0, pending });
   try {
     const value = await pending;
-    presenceCache.set(key, { value, expiresAt: Date.now() + 30_000 });
+    presenceCache.set(key, { value, expiresAt: Date.now() + 10_000 });
     return value;
   } catch (error) {
     presenceCache.delete(key);
