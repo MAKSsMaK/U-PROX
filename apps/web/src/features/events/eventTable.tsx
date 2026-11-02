@@ -68,21 +68,31 @@ export function getEventSeverity(eventName: string): EventSeverity {
 
 type EventObject = { token?: string; name: string };
 
+// These words describe a type of object, not a specific access point.  Using
+// one of them as a fallback key made every "door" match every other door.
+const genericAccessPointWords = new Set([
+  'двері', 'двер', 'вихід', 'вхід', 'точка', 'досту', 'контр', 'кнопк', 'систем', 'подія',
+]);
+
 function normalizedWords(value: string) {
   return value
     .toLocaleLowerCase('uk-UA')
     .replace(/[^a-zа-яіїєґ0-9]+/giu, ' ')
     .split(' ')
     .filter((word) => word.length >= 5)
-    .map((word) => word.slice(0, 6));
+    .map((word) => word.slice(0, 6))
+    .filter((word) => !genericAccessPointWords.has(word));
 }
 
-/** Match by U-PROX sender token first; name stems are a fallback for older API responses. */
+/**
+ * Sender token is the reliable U-PROX link between an event and a plan point.
+ * Only responses without that token may use a narrow, meaningful-name fallback.
+ */
 export function eventMatchesObject(event: EventTableRow, object: EventObject) {
-  if (object.token && event.senderToken === object.token) return true;
+  if (object.token && event.senderToken) return event.senderToken === object.token;
   const objectWords = normalizedWords(object.name);
   const pointWords = normalizedWords(event.accessPoint);
-  return objectWords.some((word) => pointWords.includes(word));
+  return objectWords.length > 0 && objectWords.some((word) => pointWords.includes(word));
 }
 
 function formatUproxxDate(value?: string) {
