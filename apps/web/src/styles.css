@@ -1783,7 +1783,12 @@ pre {
 }
 .editor-current-selection.is-ready { border-style: solid; border-color: #247a69; background: #0b292c; color: #8be2cc; }
 .editor-current-selection button { min-height: 25px; padding: 0 8px; font-size: 10px; }
-.editor-type-selectors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.editor-type-selectors {
+  align-self: end;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
 .editor-type-selector { position: relative; }
 .editor-type-selector > button {
   display: flex;

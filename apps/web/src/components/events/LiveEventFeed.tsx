@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getEvents, getPlanElements, getPlanLiveController } from '../../api';
 import { eventMatchesObject, getEventSeverity, toEventTableRows } from '../../features/events/eventTable';
-import { getFloorRooms } from '../../features/plans/floorPlans';
 import { useStore } from '../../store';
 
 function objectType(type?: 'door' | 'device' | 'input') {
@@ -51,7 +50,6 @@ export function LiveEventFeed({ collapsed, onShowObject, onToggle, view }: LiveE
     refetchInterval: view === 'legend' ? 5_000 : false,
   });
   const customLegendElements = (legendElementsQuery.data?.elements ?? []).filter((element) => element.type === 'label' && Boolean(element.detail?.trim()));
-  const floorRooms = getFloorRooms(floor);
   const allEvents = toEventTableRows(eventsQuery.data);
   const selectedEvents = selected ? allEvents.filter((event) => eventMatchesObject(event, selected)) : [];
   const events = (selected ? selectedEvents : allEvents).slice(0, 8);
@@ -100,11 +98,6 @@ export function LiveEventFeed({ collapsed, onShowObject, onToggle, view }: LiveE
             {!legendElementsQuery.isLoading && customLegendElements.length === 0 && <p className="map-legend-empty">Ще немає власних пунктів. Додай код і пояснення у редакторі плану.</p>}
             {customLegendElements.map((element) => <div className="map-legend-row" key={element.id}><i className="map-legend-code">{element.name}</i><span><b>{element.detail}</b><small>Позначка на плані: {element.name}</small></span></div>)}
           </section>
-          {floorRooms.length > 0 && <section>
-            <h2>Приміщення підвалу</h2>
-            <p className="map-legend-empty">Номери відповідають експлікації приміщень. Їх можна розставити на схемі через редактор плану.</p>
-            {floorRooms.map((room) => <div className="map-legend-row" key={room.number}><i className="map-legend-code">{room.number}</i><span><b>{room.name}</b></span></div>)}
-          </section>}
           <section>
             <h2>Стани</h2>
             <div className="map-legend-row"><i className="map-legend-state normal" /><span><b>Нормальний стан</b><small>Об’єкт доступний і без тривог</small></span></div>
