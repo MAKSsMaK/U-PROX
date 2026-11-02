@@ -49,6 +49,7 @@ export function PlanEditorPage() {
   const [saveError, setSaveError] = useState<string>();
   const [selection, setSelection] = useState<PaletteItem>();
   const [label, setLabel] = useState('');
+  const [labelLegend, setLabelLegend] = useState('');
   const [search, setSearch] = useState('');
   const [activeSelector, setActiveSelector] = useState<CatalogType>();
   const [selectorSearch, setSelectorSearch] = useState('');
@@ -131,8 +132,9 @@ export function PlanEditorPage() {
   const addLabel = () => {
     const normalized = label.trim();
     if (!normalized) return;
-    setSelection({ type: 'label', item: { token: `label-${Date.now()}`, name: normalized, model: null, online: null, deviceToken: null, inputNumber: null } });
+    setSelection({ type: 'label', item: { token: `label-${Date.now()}`, name: normalized, model: labelLegend.trim() || null, online: null, deviceToken: null, inputNumber: null } });
     setLabel('');
+    setLabelLegend('');
   };
   const chooseItem = (item: PaletteItem) => {
     setSelection(item);
@@ -301,9 +303,13 @@ export function PlanEditorPage() {
                 ))}
               </div>
               <div className="editor-label-bar">
-                <label htmlFor="plan-label">Напис</label>
-                <input id="plan-label" onChange={(event) => setLabel(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addLabel()} placeholder="Наприклад: Серверна" value={label} />
-                <button onClick={addLabel} type="button">Додати напис</button>
+                <label htmlFor="plan-label">Позначка на карті та легенда</label>
+                <div className="editor-label-fields">
+                  <input id="plan-label" onChange={(event) => setLabel(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addLabel()} placeholder="Код: 101" value={label} />
+                  <input aria-label="Пояснення позначки у легенді" onChange={(event) => setLabelLegend(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && addLabel()} placeholder="Легенда: Канцелярія" value={labelLegend} />
+                  <button onClick={addLabel} type="button">Додати</button>
+                </div>
+                <small>Додай код на карту й пояснення — воно автоматично з’явиться у бічній легенді.</small>
               </div>
             </section>
             <div className="plan-editor-workspace">

@@ -162,6 +162,24 @@ select {
   background: #12476d;
   outline: none;
 }
+.plan-legend-trigger {
+  min-height: 37px;
+  border: 1px solid #315d7c;
+  border-radius: 6px;
+  padding: 0 13px;
+  background: #101f31;
+  color: #bdd9ec;
+  font: 700 12px Manrope;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.plan-legend-trigger:hover,
+.plan-legend-trigger:focus-visible {
+  border-color: #3bbdec;
+  background: #123b56;
+  color: #effaff;
+  outline: none;
+}
 .electronic-plan {
   position: relative;
   min-height: 0;
@@ -551,6 +569,39 @@ select {
   line-height: 1.5;
 }
 .feed-empty.feed-error { color: #ff8b93; }
+.map-legend-panel {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 17px 18px 22px;
+  scrollbar-color: #426f99 #0c1929;
+  scrollbar-width: thin;
+}
+.map-legend-panel::-webkit-scrollbar { width: 8px; }
+.map-legend-panel::-webkit-scrollbar-track { background: #0c1929; }
+.map-legend-panel::-webkit-scrollbar-thumb { border: 2px solid #0c1929; border-radius: 8px; background: #426f99; }
+.map-legend-panel > p { margin: 0 0 18px; color: #8faac0; font-size: 11px; line-height: 1.55; }
+.map-legend-panel section { margin: 0 -18px; border-top: 1px solid #22324a; padding: 15px 18px 8px; }
+.map-legend-panel h2 { margin: 0 0 10px; color: #dff2ff; font-size: 12px; }
+.map-legend-row { display: flex; min-height: 38px; align-items: center; gap: 11px; padding: 6px 0; }
+.map-legend-row > span { min-width: 0; }
+.map-legend-row b, .map-legend-row small { display: block; }
+.map-legend-row b { color: #dceefa; font-size: 11px; }
+.map-legend-row small { margin-top: 2px; color: #7896ae; font-size: 10px; line-height: 1.35; }
+.map-legend-empty { margin: 0; padding: 5px 0 9px; color: #7896ae; font-size: 10px; line-height: 1.5; }
+.map-legend-symbol, .map-legend-state, .map-legend-pulse { display: grid; width: 29px; height: 29px; flex: 0 0 29px; place-items: center; border-radius: 7px; font-style: normal; }
+.map-legend-symbol { border: 1px solid currentColor; background: #0d2335; font-size: 19px; font-weight: 800; }
+.map-legend-symbol.door { color: #45d68a; }
+.map-legend-symbol.controller { color: #50a9ff; }
+.map-legend-symbol.sensor { color: #f8bd4a; }
+.map-legend-symbol.label { color: #bed3e7; font-size: 15px; }
+.map-legend-code { display: grid; width: 34px; min-height: 29px; flex: 0 0 34px; place-items: center; overflow: hidden; border: 1px solid #6ab5d9; border-radius: 5px; padding: 3px; background: #0d2335; color: #d9f2ff; font: 800 10px/1 Manrope; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.map-legend-state { width: 12px; height: 12px; flex-basis: 12px; margin: 0 9px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+.map-legend-state.normal { color: #45d68a; }
+.map-legend-state.warning { color: #f8bd4a; }
+.map-legend-state.alarm { color: #ff5e67; }
+.map-legend-pulse { position: relative; width: 16px; height: 16px; flex-basis: 16px; margin: 0 7px; border: 2px solid #5eeaff; border-radius: 50%; }
+.map-legend-pulse::after { position: absolute; width: 24px; height: 24px; border: 1px solid #5eeaff99; border-radius: 50%; content: ''; }
+.map-legend-tip { margin-top: 12px; border: 1px solid #244864; border-radius: 6px; padding: 10px 11px; background: #0c2335; color: #91bad2; font-size: 10px; line-height: 1.5; }
 .plan-details {
   position: relative;
   padding: 19px;
@@ -686,7 +737,7 @@ select {
 .plan-details-action:hover { border-color: #39aee4; background: #12415e; color: #fff; }
 .plan-status-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin: 0 18px 18px;
 }
@@ -1639,8 +1690,9 @@ pre {
   color: #e6f2ff;
   font: 12px Manrope;
 }
-.editor-label-bar { grid-template-columns: 1fr auto; }
 .editor-label-bar label { grid-column: 1 / -1; }
+.editor-label-fields { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 6px; }
+.editor-label-bar small { color: #7592aa; font-size: 9px; line-height: 1.35; }
 .editor-label-bar button,
 .editor-current-selection button {
   border: 1px solid #34749b;

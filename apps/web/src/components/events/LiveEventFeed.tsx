@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getEvents, getPlanLiveController } from '../../api';
+import { getEvents, getPlanElements, getPlanLiveController } from '../../api';
 import { eventMatchesObject, getEventSeverity, toEventTableRows } from '../../features/events/eventTable';
+import { getFloorRooms } from '../../features/plans/floorPlans';
 import { useStore } from '../../store';
 
 function objectType(type?: 'door' | 'device' | 'input') {
@@ -20,10 +21,13 @@ function objectIcon(type?: 'door' | 'device' | 'input') {
 type LiveEventFeedProps = {
   collapsed: boolean;
   onToggle: () => void;
+  onShowObject: () => void;
+  view: 'object' | 'legend';
 };
 
-export function LiveEventFeed({ collapsed, onToggle }: LiveEventFeedProps) {
+export function LiveEventFeed({ collapsed, onShowObject, onToggle, view }: LiveEventFeedProps) {
   const selected = useStore((state) => state.selected);
+  const floor = useStore((state) => state.floor);
   const navigate = useNavigate();
   const [detailsCollapsed, setDetailsCollapsed] = useState(true);
   const eventsQuery = useQuery({
@@ -40,6 +44,14 @@ export function LiveEventFeed({ collapsed, onToggle }: LiveEventFeedProps) {
     refetchInterval: 5_000,
     enabled: Boolean(controllerToken),
   });
+  const legendElementsQuery = useQuery({
+    queryKey: ['plan-elements', floor],
+    queryFn: () => getPlanElements(floor),
+    enabled: view === 'legend',
+    refetchInterval: view === 'legend' ? 5_000 : false,
+  });
+  const customLegendElements = (legendElementsQuery.data?.elements ?? []).filter((element) => element.type === 'label' && Boolean(element.detail?.trim()));
+  const floorRooms = getFloorRooms(floor);
   const allEvents = toEventTableRows(eventsQuery.data);
   const selectedEvents = selected ? allEvents.filter((event) => eventMatchesObject(event, selected)) : [];
   const events = (selected ? selectedEvents : allEvents).slice(0, 8);
@@ -58,9 +70,57 @@ export function LiveEventFeed({ collapsed, onToggle }: LiveEventFeedProps) {
         : controller?.online === false
           ? 'Не в мережі'
           : 'Стан не повернувся';
+
+  if (collapsed) {
+    return <section className="feed feed--collapsed"><button aria-label="Розгорнути бічну панель" className="feed-collapse-toggle" onClick={onToggle} title="Розгорнути бічну панель" type="button">‹</button></section>;
+  }
+
+  if (view === 'legend') {
+    return (
+      <section className="feed">
+        <div className="feed-title">
+          <b>Легенда карти</b>
+          <span className="feed-title-actions">
+            <button aria-label="Повернутися до об’єкта" onClick={onShowObject} title="Повернутися до об’єкта" type="button">‹</button>
+            <button aria-label="Згорнути панель" onClick={onToggle} title="Згорнути панель" type="button">›</button>
+          </span>
+        </div>
+        <div className="map-legend-panel">
+          <p>Позначення об’єктів і станів на електронному шарі плану.</p>
+          <section>
+            <h2>Об’єкти</h2>
+            <div className="map-legend-row"><i className="map-legend-symbol door">▯</i><span><b>Двері / точка доступу</b><small>Зелений маркер</small></span></div>
+            <div className="map-legend-row"><i className="map-legend-symbol controller">▣</i><span><b>Контролер</b><small>Синій маркер</small></span></div>
+            <div className="map-legend-row"><i className="map-legend-symbol sensor">◉</i><span><b>Датчик / вхід</b><small>Жовтий маркер</small></span></div>
+            <div className="map-legend-row"><i className="map-legend-symbol label">T</i><span><b>Напис</b><small>Текстова позначка</small></span></div>
+          </section>
+          <section>
+            <h2>Ваші позначки</h2>
+            {legendElementsQuery.isLoading && <p className="map-legend-empty">Завантаження позначок…</p>}
+            {!legendElementsQuery.isLoading && customLegendElements.length === 0 && <p className="map-legend-empty">Ще немає власних пунктів. Додай код і пояснення у редакторі плану.</p>}
+            {customLegendElements.map((element) => <div className="map-legend-row" key={element.id}><i className="map-legend-code">{element.name}</i><span><b>{element.detail}</b><small>Позначка на плані: {element.name}</small></span></div>)}
+          </section>
+          {floorRooms.length > 0 && <section>
+            <h2>Приміщення підвалу</h2>
+            <p className="map-legend-empty">Номери відповідають експлікації приміщень. Їх можна розставити на схемі через редактор плану.</p>
+            {floorRooms.map((room) => <div className="map-legend-row" key={room.number}><i className="map-legend-code">{room.number}</i><span><b>{room.name}</b></span></div>)}
+          </section>}
+          <section>
+            <h2>Стани</h2>
+            <div className="map-legend-row"><i className="map-legend-state normal" /><span><b>Нормальний стан</b><small>Об’єкт доступний і без тривог</small></span></div>
+            <div className="map-legend-row"><i className="map-legend-state warning" /><span><b>Попередження</b><small>Потрібна увага</small></span></div>
+            <div className="map-legend-row"><i className="map-legend-state alarm" /><span><b>Тривога або несправність</b><small>Червоний маркер</small></span></div>
+            <div className="map-legend-row"><i className="map-legend-pulse" /><span><b>Нова подія</b><small>Імпульс навколо маркера триває 10 секунд</small></span></div>
+          </section>
+          <div className="map-legend-tip">Натисни маркер на плані, щоб відкрити його події та технічні дані.</div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={`feed ${collapsed ? 'feed--collapsed' : ''}`}>
-      {collapsed ? <button aria-label="Розгорнути панель даних та подій" className="feed-collapse-toggle" onClick={onToggle} title="Розгорнути дані та події" type="button">‹</button> : <>
+      <>
       <div className="feed-title">
         <b>Об’єкт на плані</b>
         <span className="feed-title-actions"><em>{selected ? 'ПРИВ’ЯЗАНО' : 'НЕ ОБРАНО'}</em><button aria-label="Згорнути панель" onClick={onToggle} title="Згорнути панель" type="button">›</button></span>
@@ -118,7 +178,7 @@ export function LiveEventFeed({ collapsed, onToggle }: LiveEventFeedProps) {
           </article>
         ))}
       </div>
-      </>}
+      </>
     </section>
   );
 }

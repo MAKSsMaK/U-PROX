@@ -40,13 +40,6 @@ export function PlanStatusBar() {
           ))}
         </div>
       </div>
-      <div className="plan-legend">
-        <h2>Позначення</h2>
-        <span><i className="legend-dot green" /> Двері</span>
-        <span><i className="legend-dot blue" /> Контролер</span>
-        <span><i className="legend-dot yellow" /> Датчик / вхід</span>
-        <span><i className="legend-dot neutral" /> Напис</span>
-      </div>
     </section>
   );
 }

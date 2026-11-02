@@ -14,10 +14,14 @@ export function LivePlanPage() {
   const setFloor = useStore((state) => state.setFloor);
   const selected = useStore((state) => state.selected);
   const [panelExpanded, setPanelExpanded] = useState(false);
+  const [panelView, setPanelView] = useState<'object' | 'legend'>('object');
 
   // Selecting any plan marker is an explicit request to inspect its data.
   useEffect(() => {
-    if (selected) setPanelExpanded(true);
+    if (selected) {
+      setPanelExpanded(true);
+      setPanelView('object');
+    }
   }, [selected]);
 
   return (
@@ -41,12 +45,20 @@ export function LivePlanPage() {
             <Link className="plan-editor-link" to="/plan-editor">
               Редагувати план
             </Link>
+            <button className="plan-legend-trigger" onClick={() => { setPanelView('legend'); setPanelExpanded(true); }} type="button">
+              Легенда карти
+            </button>
           </div>
         </header>
         <FloorMap />
         <PlanStatusBar />
       </main>
-      <LiveEventFeed collapsed={!panelExpanded} onToggle={() => setPanelExpanded((current) => !current)} />
+      <LiveEventFeed
+        collapsed={!panelExpanded}
+        onShowObject={() => setPanelView('object')}
+        onToggle={() => setPanelExpanded((current) => !current)}
+        view={panelView}
+      />
     </DashboardLayout>
   );
 }
