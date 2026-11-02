@@ -1592,7 +1592,27 @@ pre {
 .editor-map-zoom button:not(:disabled):hover { background: #123b58; cursor: pointer; }
 .editor-map-zoom button:disabled { color: #4e6374; }
 .editor-map-help { margin: 0; padding: 0 17px 15px; color: #7793ad; font-size: 10px; line-height: 1.45; }
-.editor-bindings { min-height: 0; max-height: none; overflow: auto; }
+.editor-bindings {
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  scrollbar-color: #3b779f #081523;
+  scrollbar-width: thin;
+}
+.editor-bindings::-webkit-scrollbar { width: 10px; }
+.editor-bindings::-webkit-scrollbar-track {
+  border-left: 1px solid #1d3048;
+  background: #081523;
+}
+.editor-bindings::-webkit-scrollbar-thumb {
+  min-height: 44px;
+  border: 2px solid #081523;
+  border-radius: 999px;
+  background: #3b779f;
+}
+.editor-bindings::-webkit-scrollbar-thumb:hover { background: #5ba9d9; }
+.editor-bindings::-webkit-scrollbar-corner { background: #081523; }
 .editor-bindings > p { margin: 0; padding: 16px; color: #8299b3; font-size: 11px; line-height: 1.5; }
 .editor-bindings ol { margin: 0; padding: 0; list-style: none; }
 .editor-bindings li {
@@ -1669,7 +1689,8 @@ pre {
   display: grid;
   grid-template-columns: minmax(255px, 320px) minmax(0, 1fr) minmax(245px, 310px);
   gap: 10px;
-  align-items: end;
+  /* Усі поля стартують з однієї лінії: назви полів не «стрибають» через підказку легенди. */
+  align-items: start;
   margin: 10px 0 12px;
   padding: 10px 12px;
   border: 1px solid #263f5b;
@@ -1692,6 +1713,7 @@ pre {
 }
 .editor-label-bar label { grid-column: 1 / -1; }
 .editor-label-fields { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 6px; }
+.editor-label-fields > button { min-height: 38px; }
 .editor-label-bar small { color: #7592aa; font-size: 9px; line-height: 1.35; }
 .editor-label-bar button,
 .editor-current-selection button {
