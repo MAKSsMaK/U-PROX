@@ -190,3 +190,23 @@ export async function getPlanLiveController(token: string): Promise<PlanLiveCont
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
   return response.json();
 }
+
+export type CameraOverview = {
+  configured: boolean;
+  camera: { id: string; name: string; channel: number; stream: string };
+};
+
+export async function getCameras(): Promise<CameraOverview> {
+  const response = await fetch('/api/cameras');
+  if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
+  return response.json();
+}
+
+export async function refreshCameraPreview(): Promise<{ ok: true; previewUrl: string }> {
+  const response = await fetch('/api/cameras/test-preview', { method: 'POST' });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? `Backend returned HTTP ${response.status}`);
+  }
+  return response.json();
+}

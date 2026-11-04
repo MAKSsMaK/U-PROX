@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import { createHash } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +22,11 @@ const env = z
     UPROX_EMPLOYEE_DIRECTORY_LIMIT: z.coerce.number().int().min(1).max(10_000).default(2_000),
     CONTROL_RATE_LIMIT_PER_MINUTE: z.coerce.number().default(12),
     PLAN_STORAGE_FILE: z.string().optional(),
+    HIKVISION_NVR_HOST: z.string().trim().optional(),
+    HIKVISION_NVR_USERNAME: z.string().trim().optional(),
+    HIKVISION_NVR_PASSWORD: z.string().optional(),
+    HIKVISION_CAMERA_TEST_CHANNEL: z.coerce.number().int().min(1).max(99).default(6),
+    HIKVISION_FFMPEG_PATH: z.string().trim().default('ffmpeg'),
   })
   .superRefine((value, context) => {
     if (
@@ -39,6 +45,7 @@ const planStorageFile = env.PLAN_STORAGE_FILE
   ? resolve(env.PLAN_STORAGE_FILE)
   : resolve(moduleDirectory, '../data/plan-elements.json');
 const personnelStorageFile = resolve(dirname(planStorageFile), 'personnel-overrides.json');
+const cameraPreviewFile = resolve(dirname(planStorageFile), 'camera-preview.jpg');
 const reportFontFile = resolve(moduleDirectory, '../assets/NotoSans-Regular.ttf');
 await app.register(rateLimit, { global: false });
 type Session = { sid: string; expiresAt: number };
@@ -50,6 +57,7 @@ const images = new Map<string, CachedImage>();
 const LIVE_CACHE_MS = 5_000;
 const UPROX_EVENT_PAGE_SIZE = 200;
 const UPROX_REPORT_MAX_EVENTS = 100_000;
+let cameraPreviewPending: Promise<void> | undefined;
 type TimedCache = { value: unknown; expiresAt: number; pending?: Promise<unknown> };
 const liveControllerCache = new Map<string, TimedCache>();
 type UproxxEmployee = {
@@ -133,6 +141,71 @@ app.get('/api/health', async () => ({
   mode: env.MOCK_UPROX === 'true' ? 'mock' : 'uproxx',
   uproxxBase: env.MOCK_UPROX === 'true' ? null : env.UPROX_BASE_URL,
 }));
+
+function cameraConfigured() {
+  return Boolean(env.HIKVISION_NVR_HOST && env.HIKVISION_NVR_USERNAME && env.HIKVISION_NVR_PASSWORD);
+}
+
+function cameraChannelId() {
+  // Hikvision uses 101/102 for its first camera: xx1 main stream, xx2 substream.
+  return env.HIKVISION_CAMERA_TEST_CHANNEL * 100 + 2;
+}
+
+function cameraRtspUrl() {
+  if (!cameraConfigured()) throw new Error('Camera integration is not configured');
+  const username = encodeURIComponent(env.HIKVISION_NVR_USERNAME!);
+  const password = encodeURIComponent(env.HIKVISION_NVR_PASSWORD!);
+  return `rtsp://${username}:${password}@${env.HIKVISION_NVR_HOST}:554/Streaming/Channels/${cameraChannelId()}`;
+}
+
+async function createCameraPreview() {
+  if (cameraPreviewPending) return cameraPreviewPending;
+  cameraPreviewPending = new Promise<void>((resolvePreview, rejectPreview) => {
+    const outputFile = `${cameraPreviewFile}.tmp`;
+    const child = spawn(env.HIKVISION_FFMPEG_PATH, [
+      '-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp',
+      '-rw_timeout', '10000000', '-i', cameraRtspUrl(), '-frames:v', '1', '-q:v', '3', '-y', outputFile,
+    ], { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+    const timeout = setTimeout(() => child.kill('SIGKILL'), 15_000);
+    child.once('error', (error) => { clearTimeout(timeout); rejectPreview(error); });
+    child.once('close', async (code) => {
+      clearTimeout(timeout);
+      if (code !== 0) return rejectPreview(new Error(stderr.trim() || 'Unable to receive a frame from the camera'));
+      try {
+        await mkdir(dirname(cameraPreviewFile), { recursive: true });
+        await rename(outputFile, cameraPreviewFile);
+        resolvePreview();
+      } catch (error) { rejectPreview(error); }
+    });
+  }).finally(() => { cameraPreviewPending = undefined; });
+  return cameraPreviewPending;
+}
+
+app.get('/api/cameras', async () => ({
+  configured: cameraConfigured(),
+  camera: { id: `D${env.HIKVISION_CAMERA_TEST_CHANNEL}`, name: `Камера ${env.HIKVISION_CAMERA_TEST_CHANNEL === 6 ? '205' : env.HIKVISION_CAMERA_TEST_CHANNEL}`, channel: env.HIKVISION_CAMERA_TEST_CHANNEL, stream: 'підпотік' },
+}));
+
+app.post('/api/cameras/test-preview', { config: { rateLimit: { max: 8, timeWindow: '1 minute' } } }, async (_request, reply) => {
+  if (!cameraConfigured()) return reply.code(409).send({ error: 'Камеру ще не налаштовано на сервері.' });
+  try {
+    await mkdir(dirname(cameraPreviewFile), { recursive: true });
+    await createCameraPreview();
+    return { ok: true, previewUrl: `/api/cameras/test-preview.jpg?t=${Date.now()}` };
+  } catch (error) {
+    app.log.warn({ error }, 'Camera preview failed');
+    return reply.code(502).send({ error: 'Не вдалося отримати кадр. Перевірте RTSP-доступ користувача та наявність FFmpeg на сервері.' });
+  }
+});
+
+app.get('/api/cameras/test-preview.jpg', async (_request, reply) => {
+  try {
+    const preview = await readFile(cameraPreviewFile);
+    return reply.header('Cache-Control', 'no-store').type('image/jpeg').send(preview);
+  } catch { return reply.code(404).send({ error: 'Тестовий кадр ще не створено.' }); }
+});
 
 const planElementSchema = z.object({
   id: z.string().min(1).max(128),

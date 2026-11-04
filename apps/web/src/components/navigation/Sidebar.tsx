@@ -7,6 +7,7 @@ const navigation = [
   ['⌘', 'Плани', '/plans'],
   ['◷', 'Події', '/events'],
   ['♙', 'Персонал', '/personnel'],
+  ['◉', 'Камери', '/cameras'],
   ['▤', 'Звіти', '/reports'],
 ] as const;
 
