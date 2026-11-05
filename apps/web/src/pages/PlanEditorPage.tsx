@@ -114,15 +114,16 @@ export function PlanEditorPage() {
     if (!catalog || !planElementsQuery.isSuccess || !planElementsQuery.data.elements.length) return;
     const current = planElementsQuery.data.elements;
     const enriched = current.map((element) => {
-      if (element.type !== 'door' || element.eventTokens?.length) return element;
+      if (element.type !== 'door' || element.eventTokens !== undefined) return element;
       const eventTokens = childInputTokens(element.name, catalog.inputs);
-      return eventTokens.length ? { ...element, eventTokens } : element;
+      // Even an empty list is important: it means this marker has no verified
+      // child input, so it must not borrow events from a similarly named door.
+      return { ...element, eventTokens };
     });
     if (enriched.every((element, index) => element === current[index])) return;
 
-    // A one-time, non-destructive migration for markers that were saved before
-    // child input tokens were supported. The old name bridge remains available
-    // if U-PROX did not return a matching child input.
+    // A one-time migration for markers that were saved before child input
+    // tokens were supported. After this, door activity is exact-token only.
     setElements(enriched);
     void savePlanElements(floor, enriched)
       .then((saved) => {

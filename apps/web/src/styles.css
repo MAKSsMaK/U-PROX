@@ -1699,7 +1699,13 @@ pre {
 }
 .editor-object-search,
 .editor-label-bar { position: relative; display: grid; gap: 6px; }
-.editor-object-bar label { color: #94abc2; font-size: 11px; font-weight: 800; }
+.editor-object-bar label {
+  min-height: 13px;
+  color: #94abc2;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 13px;
+}
 .editor-object-bar input {
   width: 100%;
   min-width: 0;
@@ -1712,8 +1718,13 @@ pre {
   font: 12px Manrope;
 }
 .editor-label-bar label { grid-column: 1 / -1; }
-.editor-label-fields { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 6px; }
-.editor-label-fields > button { min-height: 38px; }
+.editor-label-fields {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: stretch;
+}
+.editor-label-fields > button { height: 38px; min-height: 38px; }
 .editor-label-bar small { color: #7592aa; font-size: 9px; line-height: 1.35; }
 .editor-label-bar button,
 .editor-current-selection button {
@@ -1788,6 +1799,8 @@ pre {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
+  /* Компенсуємо рядок з підписами сусідніх полів: усі контролі на одній осі. */
+  padding-top: 19px;
 }
 .editor-type-selector { position: relative; }
 .editor-type-selector > button {

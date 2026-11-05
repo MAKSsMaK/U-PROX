@@ -54,7 +54,7 @@ function eventState(eventName: string): MapEventState {
 }
 
 function lastEventForElement(
-  element: { token?: string; name: string },
+  element: PlanElement,
   events: EventTableRow[],
 ) {
   return events.find((event) => eventMatchesObject(event, element));

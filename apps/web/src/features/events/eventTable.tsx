@@ -95,7 +95,13 @@ function normalizedWords(value: string) {
  * the input events that belong to a door or turnstile marker.
  */
 export function eventMatchesObject(event: EventTableRow, object: EventObject) {
-  if (event.senderToken && object.eventTokens?.includes(event.senderToken)) return true;
+  // A saved child-token list is an explicit U-PROX binding.  Do not fall
+  // back to words in the name if an event belongs to another access point —
+  // otherwise unrelated doors can inherit each other's activity.
+  if (object.eventTokens !== undefined) {
+    return Boolean(event.senderToken && object.eventTokens.includes(event.senderToken))
+      || Boolean(object.token && event.senderToken === object.token);
+  }
   if (object.token && event.senderToken && event.senderToken === object.token) return true;
   const objectWords = normalizedWords(object.name);
   const pointWords = normalizedWords(event.accessPoint);
