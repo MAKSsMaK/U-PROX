@@ -30,8 +30,11 @@ export function LiveEventFeed({ collapsed, onShowObject, onToggle, view }: LiveE
   const navigate = useNavigate();
   const [detailsCollapsed, setDetailsCollapsed] = useState(true);
   const eventsQuery = useQuery({
-    queryKey: ['plan-events', 24, 100],
-    queryFn: () => getEvents({ hours: 24, limit: 100 }),
+    // 200 is one native U-PROX page. It makes an older event on a selected
+    // point much less likely to be outside the live-plan window without
+    // adding extra requests to the controller.
+    queryKey: ['plan-events', 24, 200],
+    queryFn: () => getEvents({ hours: 24, limit: 200 }),
     refetchInterval: 5_000,
   });
   const controllerToken = selected?.type === 'device'
@@ -140,7 +143,7 @@ export function LiveEventFeed({ collapsed, onShowObject, onToggle, view }: LiveE
             </dl>
             <div className="plan-last-event">
               <span>Остання подія цієї точки</span>
-              {selectedLastEvent ? <><b>{selectedLastEvent.name}</b><time>{selectedLastEvent.occurredAt}</time></> : <p>За останні 24 години подію для цього токена не знайдено.</p>}
+              {selectedLastEvent ? <><b>{selectedLastEvent.name}</b><time>{selectedLastEvent.occurredAt}</time></> : <p>За останні 24 години подій для цього об’єкта не знайдено.</p>}
             </div>
             {controllerToken && <div className="plan-live-telemetry">
               <div><span>Входи</span><b>{controllerQuery.data?.inputs.length ?? '—'}</b></div>

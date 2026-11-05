@@ -66,7 +66,7 @@ export function getEventSeverity(eventName: string): EventSeverity {
   return 'normal';
 }
 
-type EventObject = { token?: string; name: string };
+type EventObject = { token?: string; eventTokens?: string[]; name: string };
 
 // These words describe a type of object, not a specific access point.  Using
 // one of them as a fallback key made every "door" match every other door.
@@ -85,11 +85,18 @@ function normalizedWords(value: string) {
 }
 
 /**
- * Sender token is the reliable U-PROX link between an event and a plan point.
- * Only responses without that token may use a narrow, meaningful-name fallback.
+ * An event is emitted by a U-PROX input (for example, “Скляні двері — вхід”),
+ * while a plan marker may be bound to the parent door (“Скляні двері”).
+ *
+ * Therefore the sender token remains the primary, exact link.  When it points
+ * to a different U-PROX entity, use only a deliberately narrow name bridge:
+ * at least one non-generic part of the door name must also be present in the
+ * input name.  This preserves exact matching where possible without hiding
+ * the input events that belong to a door or turnstile marker.
  */
 export function eventMatchesObject(event: EventTableRow, object: EventObject) {
-  if (object.token && event.senderToken) return event.senderToken === object.token;
+  if (event.senderToken && object.eventTokens?.includes(event.senderToken)) return true;
+  if (object.token && event.senderToken && event.senderToken === object.token) return true;
   const objectWords = normalizedWords(object.name);
   const pointWords = normalizedWords(event.accessPoint);
   return objectWords.length > 0 && objectWords.some((word) => pointWords.includes(word));

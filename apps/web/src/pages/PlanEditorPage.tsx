@@ -34,6 +34,32 @@ const selectorTypes: Array<{ type: CatalogType; label: string }> = [
   { type: 'input', label: 'Датчики / входи' },
 ];
 
+const genericPointWords = new Set(['двері', 'двер', 'вихід', 'вхід', 'точка', 'досту', 'контр', 'кнопк', 'систем', 'подія']);
+
+function meaningfulNameWords(value: string) {
+  return value
+    .toLocaleLowerCase('uk-UA')
+    .replace(/[^a-zа-яіїєґ0-9]+/giu, ' ')
+    .split(' ')
+    .filter((word) => word.length >= 5)
+    .map((word) => word.slice(0, 6))
+    .filter((word) => !genericPointWords.has(word));
+}
+
+/**
+ * A door or turnstile is one plan marker, but U-PROX sends events from its
+ * separate IN/OUT inputs. Save those child tokens on the marker once so the
+ * live plan uses an exact token link thereafter.
+ */
+function childInputTokens(name: string, inputs: PlanCatalogItem[]) {
+  const parentWords = meaningfulNameWords(name);
+  if (!parentWords.length) return [];
+  return inputs
+    .filter((input) => meaningfulNameWords(input.name).some((word) => parentWords.includes(word)))
+    .map((input) => input.token)
+    .filter(Boolean);
+}
+
 export function PlanEditorPage() {
   const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: getPlanCatalog });
   const queryClient = useQueryClient();
@@ -83,6 +109,28 @@ export function PlanEditorPage() {
     if (!selection) return 'Оберіть об’єкт у верхній панелі або створіть текстову позначку.';
     return `Обрано: ${selection.item.name}. Клацни на схемі, щоб розмістити.`;
   }, [selection]);
+
+  useEffect(() => {
+    if (!catalog || !planElementsQuery.isSuccess || !planElementsQuery.data.elements.length) return;
+    const current = planElementsQuery.data.elements;
+    const enriched = current.map((element) => {
+      if (element.type !== 'door' || element.eventTokens?.length) return element;
+      const eventTokens = childInputTokens(element.name, catalog.inputs);
+      return eventTokens.length ? { ...element, eventTokens } : element;
+    });
+    if (enriched.every((element, index) => element === current[index])) return;
+
+    // A one-time, non-destructive migration for markers that were saved before
+    // child input tokens were supported. The old name bridge remains available
+    // if U-PROX did not return a matching child input.
+    setElements(enriched);
+    void savePlanElements(floor, enriched)
+      .then((saved) => {
+        writePlanElements(floor, saved.elements);
+        queryClient.setQueryData(['plan-elements', floor], saved);
+      })
+      .catch(() => setSaveError('Не вдалося зберегти токени входів для прив’язок. Спробуй ще раз у редакторі плану.'));
+  }, [catalog, floor, planElementsQuery.data, planElementsQuery.isSuccess, queryClient]);
 
   useEffect(() => {
     if (!planElementsQuery.isSuccess) return;
@@ -162,6 +210,7 @@ export function PlanEditorPage() {
       name: selection.item.name,
       detail: selection.type === 'input' ? selection.item.deviceToken : selection.item.model ?? selection.item.deviceToken,
       deviceToken: selection.item.deviceToken,
+      eventTokens: selection.type === 'door' && catalog ? childInputTokens(selection.item.name, catalog.inputs) : undefined,
       x,
       y,
     }]);

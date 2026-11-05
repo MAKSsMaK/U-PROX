@@ -214,6 +214,7 @@ const planElementSchema = z.object({
   name: z.string().min(1).max(300),
   detail: z.string().max(300).nullable().optional(),
   deviceToken: z.string().max(128).nullable().optional(),
+  eventTokens: z.array(z.string().min(1).max(128)).max(32).optional(),
   x: z.number().finite().min(0).max(100),
   y: z.number().finite().min(0).max(100),
 });

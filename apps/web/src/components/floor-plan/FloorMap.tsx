@@ -73,8 +73,11 @@ export function FloorMap() {
   const [showTextLabels, setShowTextLabels] = useState(true);
   const [pulseUntil, setPulseUntil] = useState<Record<string, number>>({});
   const eventsQuery = useQuery({
-    queryKey: ['plan-events', 24, 100],
-    queryFn: () => getEvents({ hours: 24, limit: 100 }),
+    // Keep this aligned with the selected-object feed.  200 events is the
+    // size of one U-PROX request page, so it does not increase controller
+    // polling round-trips.
+    queryKey: ['plan-events', 24, 200],
+    queryFn: () => getEvents({ hours: 24, limit: 200 }),
     refetchInterval: 5_000,
   });
   const planElementsQuery = useQuery({

@@ -7,6 +7,8 @@ export type PlanElement = {
   name: string;
   detail?: string | null;
   deviceToken?: string | null;
+  /** Tokens of child U-PROX inputs that report events for this single marker. */
+  eventTokens?: string[];
   x: number;
   y: number;
 };
