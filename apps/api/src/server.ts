@@ -256,19 +256,26 @@ async function persistSharedPlanElements() {
   await sharedPlanWrite;
 }
 
+function automaticPlanTokens(elements: z.infer<typeof planElementSchema>[], doors: PlanCatalogItem[]) {
+  return elements.map((element) => ({ ...element, eventTokens: element.type === 'door'
+    ? [...(doors.find((door) => door.token === element.token)?.eventTokens ?? [])] : [] }));
+}
+
 app.get('/api/plan/elements/:floor', async (request) => {
   const { floor } = planFloorParams.parse(request.params);
   await ensureSharedPlanElementsLoaded();
-  return { floor, elements: sharedPlanElements[floor] ?? [] };
+  const catalog = await loadPlanCatalog();
+  return { floor, elements: automaticPlanTokens(sharedPlanElements[floor] ?? [], catalog.doors) };
 });
 
 app.put('/api/plan/elements/:floor', async (request) => {
   const { floor } = planFloorParams.parse(request.params);
   const { elements } = planElementsBody.parse(request.body);
   await ensureSharedPlanElementsLoaded();
-  sharedPlanElements[floor] = elements;
+  const catalog = await loadPlanCatalog();
+  sharedPlanElements[floor] = automaticPlanTokens(elements, catalog.doors);
   await persistSharedPlanElements();
-  return { floor, elements };
+  return { floor, elements: sharedPlanElements[floor] };
 });
 
 const personnelRecordSchema = z.object({
@@ -398,6 +405,7 @@ type PlanCatalogItem = {
   online: boolean | null;
   deviceToken: string | null;
   inputNumber: string | null;
+  eventTokens?: string[];
 };
 
 function records(value: unknown, property: string) {
@@ -423,7 +431,7 @@ function catalogItem(record: UproxxCatalogRecord): PlanCatalogItem {
   };
 }
 
-app.get('/api/plan/catalog', async () => {
+async function loadPlanCatalog() {
   const listBody = { Language: 'uk', Limit: 2_000, StartToken: 0 };
   const [doorResult, deviceResult, inputResult] = await Promise.allSettled([
     uproxx('DoorGetList', listBody),
@@ -435,9 +443,17 @@ app.get('/api/plan/catalog', async () => {
       ? `${label}: ${result.reason instanceof Error ? result.reason.message : 'недоступно'}`
       : null;
 
+  const inputs = inputResult.status === 'fulfilled' ? records(inputResult.value, 'DeviceInput') : [];
+  const doors = doorResult.status === 'fulfilled' ? records(doorResult.value, 'Door').map(catalogItem) : [];
+  for (const door of doors) {
+    door.eventTokens = [...new Set(inputs.filter((input) => {
+      const connected = input.ConnectedTo as UproxxCatalogRecord | undefined;
+      const target = input.DoorToken ?? connected?.Token;
+      return target !== undefined && target !== null && String(target) === door.token;
+    }).map((input) => String(input.Token ?? '')).filter(Boolean))];
+  }
   return {
-    doors:
-      doorResult.status === 'fulfilled' ? records(doorResult.value, 'Door').map(catalogItem) : [],
+    doors,
     devices:
       deviceResult.status === 'fulfilled'
         ? records(deviceResult.value, 'Device').map(catalogItem)
@@ -452,7 +468,9 @@ app.get('/api/plan/catalog', async () => {
       unavailable(inputResult, 'DeviceInputGetList'),
     ].filter((warning): warning is string => Boolean(warning)),
   };
-});
+}
+
+app.get('/api/plan/catalog', loadPlanCatalog);
 
 const liveControllerParams = z.object({ token: z.coerce.number().int().positive() });
 

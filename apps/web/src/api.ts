@@ -70,6 +70,7 @@ export type PlanCatalogItem = {
   online: boolean | null;
   deviceToken: string | null;
   inputNumber: string | null;
+  eventTokens?: string[];
 };
 
 export type PlanCatalog = {

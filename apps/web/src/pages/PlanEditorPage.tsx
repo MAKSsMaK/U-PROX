@@ -29,9 +29,7 @@ function createPlanElementId() {
 }
 
 const selectorTypes: Array<{ type: CatalogType; label: string }> = [
-  { type: 'door', label: 'Двері' },
-  { type: 'device', label: 'Контролери' },
-  { type: 'input', label: 'Датчики / входи' },
+  { type: 'door', label: 'Двері та турнікети' },
 ];
 
 export function PlanEditorPage() {
@@ -54,7 +52,6 @@ export function PlanEditorPage() {
   const [activeSelector, setActiveSelector] = useState<CatalogType>();
   const [selectorSearch, setSelectorSearch] = useState('');
   const [selectedElementId, setSelectedElementId] = useState<string>();
-  const [eventTokenSearch, setEventTokenSearch] = useState('');
   const [editorZoom, setEditorZoom] = useState(1);
   const [editorPan, setEditorPan] = useState({ x: 0, y: 0 });
   const frameRef = useRef<HTMLDivElement>(null);
@@ -65,8 +62,6 @@ export function PlanEditorPage() {
   const catalog = catalogQuery.data;
   const catalogItems = useMemo(() => [
     ...(catalog?.doors ?? []).map((item) => ({ type: 'door' as const, item, group: 'Двері' })),
-    ...(catalog?.devices ?? []).map((item) => ({ type: 'device' as const, item, group: 'Контролери' })),
-    ...(catalog?.inputs ?? []).map((item) => ({ type: 'input' as const, item, group: 'Датчики / входи' })),
   ], [catalog]);
   const foundItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('uk-UA');
@@ -119,28 +114,11 @@ export function PlanEditorPage() {
     () => elements.find((element) => element.id === selectedElementId),
     [elements, selectedElementId],
   );
-  const eventInputOptions = useMemo(() => {
-    const query = eventTokenSearch.trim().toLocaleLowerCase('uk-UA');
-    return (catalog?.inputs ?? []).filter((input) => !query
-      || `${input.name} ${input.token} ${input.deviceToken ?? ''}`
-        .toLocaleLowerCase('uk-UA').includes(query));
-  }, [catalog?.inputs, eventTokenSearch]);
-  const toggleEventToken = (token: string) => {
-    if (!selectedElement || selectedElement.type === 'label') return;
-    const currentTokens = selectedElement.eventTokens ?? [];
-    const nextTokens = currentTokens.includes(token)
-      ? currentTokens.filter((value) => value !== token)
-      : [...currentTokens, token];
-    updateElements(elements.map((element) => (
-      element.id === selectedElement.id ? { ...element, eventTokens: nextTokens } : element
-    )));
-  };
-  const clearEventTokens = () => {
-    if (!selectedElement || selectedElement.type === 'label') return;
-    updateElements(elements.map((element) => (
-      element.id === selectedElement.id ? { ...element, eventTokens: [] } : element
-    )));
-  };
+  useEffect(() => {
+    if (!catalog) return;
+    setElements((current) => current.map((element) => ({ ...element, eventTokens:
+      element.type === 'door' ? [...(catalog.doors.find((door) => door.token === element.token)?.eventTokens ?? [])] : [] })));
+  }, [catalog, planElementsQuery.data]);
   const saveElements = async () => {
     try {
       setSaveError(undefined);
@@ -189,11 +167,7 @@ export function PlanEditorPage() {
       name: selection.item.name,
       detail: selection.type === 'input' ? selection.item.deviceToken : selection.item.model ?? selection.item.deviceToken,
       deviceToken: selection.item.deviceToken,
-      // Event links are always selected manually by exact U-PROX input token.
-      // Names such as “двері” are shared by many independent points.
-      // Events are attached deliberately in the bindings panel after placing
-      // the marker. Never infer them from a name or a parent device token.
-      eventTokens: [],
+      eventTokens: selection.item.eventTokens ?? [],
       x,
       y,
     }]);
@@ -234,7 +208,6 @@ export function PlanEditorPage() {
       suppressMarkerClick.current = false;
       return;
     }
-    setEventTokenSearch('');
     setSelectedElementId((current) => current === id ? undefined : id);
   };
   const beginPan = (event: PointerEvent<HTMLDivElement>) => {
@@ -288,7 +261,7 @@ export function PlanEditorPage() {
             <button className={`editor-save ${isDirty ? 'is-dirty' : ''}`} disabled={!isDirty} onClick={() => void saveElements()} type="button">
               {isDirty ? 'Зберегти зміни' : 'Збережено'}
             </button>
-            <button className="catalog-refresh" onClick={() => catalogQuery.refetch()} type="button">Оновити з U‑PROX</button>
+            <button className="catalog-refresh" onClick={async () => { await catalogQuery.refetch(); await queryClient.invalidateQueries({ queryKey: ['plan-elements'] }); }} type="button">Оновити з U‑PROX</button>
           </div>
         </header>
         {catalogQuery.isError ? (
@@ -406,41 +379,20 @@ export function PlanEditorPage() {
                   <section className="editor-event-token-editor">
                     <header>
                       <b>Події для «{selectedElement.name}»</b>
-                      <span>Вибери конкретні входи U-PROX. Для турнікета познач обидва напрямки: «вхід» і «вихід».</span>
+                      <span>Входи та виходи визначаються автоматично за точною прив’язкою U‑PROX.</span>
                     </header>
-                    <input
-                      aria-label="Пошук входу U-PROX"
-                      onChange={(event) => setEventTokenSearch(event.target.value)}
-                      placeholder="Пошук за назвою або токеном"
-                      value={eventTokenSearch}
-                    />
                     <div className="editor-event-token-list">
-                      {eventInputOptions.map((input) => {
-                        const checked = (selectedElement.eventTokens ?? []).includes(input.token);
-                        return (
-                          <label className={checked ? 'is-selected' : ''} key={input.token}>
-                            <input checked={checked} onChange={() => toggleEventToken(input.token)} type="checkbox" />
-                            <span>
-                              <b>{input.name}</b>
-                              <small>Токен: {input.token}{input.deviceToken ? ` · контролер: ${input.deviceToken}` : ''}</small>
-                            </span>
-                          </label>
-                        );
-                      })}
-                      {!eventInputOptions.length && <p>Входів U-PROX не знайдено.</p>}
+                      {(catalog?.inputs ?? []).filter((input) => selectedElement.eventTokens?.includes(input.token)).map((input) => (
+                        <p key={input.token}>{input.name} · {input.token}</p>
+                      ))}
+                      {!selectedElement.eventTokens?.length && <p>Точної прив’язки U‑PROX немає. Події не показуються.</p>}
                     </div>
-                    <footer>
-                      <small>{selectedElement.eventTokens?.length
-                        ? `Обрано входів: ${selectedElement.eventTokens.length}`
-                        : 'Входи не вибрані: події для цього маркера не показуються.'}</small>
-                      <button onClick={clearEventTokens} type="button">Очистити</button>
-                    </footer>
                   </section>
                 )}
                 {elements.length === 0 ? <p>Ще немає прив’язок. Почни з дверей, які точно знаходяться на третьому поверсі.</p> : (
                   <ol>{elements.map((element) => (
                     <li className={selectedElementId === element.id ? 'is-selected' : ''} key={element.id}>
-                      <button className="editor-binding-select" onClick={() => { setEventTokenSearch(''); setSelectedElementId(element.id); }} type="button">
+                      <button className="editor-binding-select" onClick={() => { setSelectedElementId(element.id); }} type="button">
                         <i className={element.type}>{planElementIcon(element.type)}</i>
                         <span><b>{element.name}</b><small>{element.token ? `Токен: ${element.token}` : 'Текстова позначка'}</small></span>
                       </button>
