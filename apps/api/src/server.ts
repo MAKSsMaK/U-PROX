@@ -203,15 +203,36 @@ app.get('/api/cameras', async (_request, reply) => {
   }
 });
 
+function cameraFailure(stderr: string, spawnFailed = false) {
+  if (spawnFailed) return 'FFmpeg не знайдено на сервері. Перевірте HIKVISION_FFMPEG_PATH.';
+  if (/401|unauthorized/i.test(stderr)) return 'RTSP відхилив облікові дані або доступ до камери.';
+  if (/404|not found/i.test(stderr)) return 'Підпотік камери не знайдено на реєстраторі.';
+  if (/timed out|timeout|connection refused|no route/i.test(stderr)) return 'Немає з’єднання з RTSP реєстратора на порті 554.';
+  return 'Не вдалося отримати кадр із RTSP. Перевірте, чи камера онлайн і чи ввімкнений підпотік.';
+}
+
 app.get('/api/cameras/:channel/live', async (request, reply) => {
   const { channel } = z.object({ channel: z.coerce.number().int().min(1).max(999) }).parse(request.params);
   if (!cameraConfigured() || !cameraChannels.some((camera) => camera.channel === channel)) return reply.code(404).send({ error: 'Камеру не знайдено' });
-  const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-rw_timeout', '10000000', '-i', cameraRtspUrl(channel), '-an', '-vf', 'fps=5,scale=960:-2', '-q:v', '5', '-f', 'mpjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'ignore'] });
-  child.once('error', () => { if (!reply.raw.destroyed) reply.raw.destroy(); });
+  const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-rw_timeout', '10000000', '-i', cameraRtspUrl(channel), '-an', '-vf', 'fps=5,scale=960:-2', '-q:v', '5', '-f', 'mpjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let stderr = '';
+  child.stderr.on('data', (chunk: Buffer) => { stderr = (stderr + chunk.toString()).slice(-4000); });
+  const first = await new Promise<{ chunk?: Buffer; error?: string }>((resolve) => {
+    let settled = false;
+    const finish = (result: { chunk?: Buffer; error?: string }) => { if (settled) return; settled = true; clearTimeout(timer); resolve(result); };
+    const timer = setTimeout(() => { child.kill(); finish({ error: 'Камера не відповіла вчасно. Перевірте RTSP і доступність камери.' }); }, 15000);
+    child.stdout.once('data', (chunk: Buffer) => { child.stdout.pause(); finish({ chunk }); });
+    child.once('error', () => finish({ error: cameraFailure(stderr, true) }));
+    child.once('close', () => finish({ error: cameraFailure(stderr) }));
+    reply.raw.once('close', () => { if (!settled) { child.kill(); finish({ error: 'З’єднання закрито.' }); } });
+  });
+  if (!first.chunk) { child.kill(); return reply.code(502).send({ error: first.error }); }
   reply.hijack();
   reply.raw.writeHead(200, { 'Content-Type': 'multipart/x-mixed-replace; boundary=ffmpeg', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+  reply.raw.write(first.chunk);
   child.stdout.pipe(reply.raw);
-  reply.raw.on('close', () => { child.kill('SIGKILL'); });
+  child.stdout.resume();
+  reply.raw.on('close', () => { child.kill(); });
   child.once('close', () => { if (!reply.raw.destroyed) reply.raw.end(); });
 });
 
