@@ -583,6 +583,7 @@ const eventsQuery = z.object({
   department: z.string().trim().max(300).default(''),
   accessPoint: z.string().trim().max(300).default(''),
   eventMode: z.enum(['all', 'normal', 'security']).default('all'),
+  senderTokens: z.string().max(5000).default(''),
 }).superRefine((value, context) => {
   if ((value.from === undefined) !== (value.to === undefined)) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'Both from and to are required for a custom event range' });
@@ -1059,9 +1060,10 @@ app.get('/api/events', async (request) => {
   const from = requestedFrom ?? to - hours * 60 * 60_000;
   // The live journal remains light: a large scan is only needed for an
   // explicit field filter or when the user asks for older pages.
-  const hasDeepLookup = Boolean(input.search || input.department || input.accessPoint || offset > 0);
+  const hasDeepLookup = Boolean(input.search || input.department || input.accessPoint || input.senderTokens || offset > 0);
   const range = await getEventsRange(from, to, hasDeepLookup ? UPROX_REPORT_MAX_EVENTS : limit);
-  const events = range.events.filter((event) => matchesEventFilter(event, input));
+  const senderTokens = new Set(input.senderTokens.split(',').filter(Boolean));
+  const events = range.events.filter((event) => matchesEventFilter(event, input) && (!senderTokens.size || senderTokens.has(String((event.Sender as { Token?: string | number } | undefined)?.Token ?? ''))));
   const page = events.slice(offset, offset + limit);
   return {
     Event: page,
@@ -1127,6 +1129,8 @@ const probes = {
   version: { path: 'VersionGet', body: {} },
   doors: { path: 'DoorGetList', body: { Language: 'uk', Limit: 100, StartToken: 0 } },
   devices: { path: 'DeviceGetList', body: { Language: 'uk', Limit: 100, StartToken: 0 } },
+  inputs: { path: 'DeviceInputGetList', body: { Language: 'uk', Limit: 2000, StartToken: 0 } },
+  outputs: { path: 'DeviceOutputGetList', body: { Language: 'uk', Limit: 2000, StartToken: 0 } },
   events: {
     path: 'EventGetListV2',
     body: { Language: 'uk', SubscriptionEnabled: false, Limit: 10, StartToken: 0 },

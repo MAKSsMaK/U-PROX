@@ -6,6 +6,7 @@ export type PlanSelection = {
   name: string;
   type: 'door' | 'device' | 'input';
   token?: string;
+  eventTokens?: string[];
   detail?: string | null;
   deviceToken?: string | null;
   lastEvent?: { name: string; occurredAt: string };

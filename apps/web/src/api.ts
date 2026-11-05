@@ -6,7 +6,7 @@ export async function runIntegrationTest() {
   return r.json();
 }
 
-export async function getEvents({ hours = 24, limit = 50, offset = 0, from, to, search = '', department = '', accessPoint = '', eventMode = 'all' }: {
+export async function getEvents({ hours = 24, limit = 50, offset = 0, from, to, search = '', department = '', accessPoint = '', eventMode = 'all', senderTokens = [] }: {
   hours?: number;
   limit?: number;
   offset?: number;
@@ -16,12 +16,14 @@ export async function getEvents({ hours = 24, limit = 50, offset = 0, from, to, 
   department?: string;
   accessPoint?: string;
   eventMode?: 'all' | 'normal' | 'security';
+  senderTokens?: string[];
 } = {}) {
   const params = new URLSearchParams({ hours: String(hours), limit: String(limit), offset: String(offset), eventMode });
   if (from !== undefined && to !== undefined) {
     params.set('from', String(from));
     params.set('to', String(to));
   }
+  if (senderTokens.length) params.set('senderTokens', senderTokens.join(','));
   if (search) params.set('search', search);
   if (department) params.set('department', department);
   if (accessPoint) params.set('accessPoint', accessPoint);

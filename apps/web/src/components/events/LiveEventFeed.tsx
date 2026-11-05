@@ -29,13 +29,12 @@ export function LiveEventFeed({ collapsed, onShowObject, onToggle, view }: LiveE
   const floor = useStore((state) => state.floor);
   const navigate = useNavigate();
   const [detailsCollapsed, setDetailsCollapsed] = useState(true);
+  const tokens = selected?.eventTokens ?? [];
   const eventsQuery = useQuery({
-    // 200 is one native U-PROX page. It makes an older event on a selected
-    // point much less likely to be outside the live-plan window without
-    // adding extra requests to the controller.
-    queryKey: ['plan-events', 24, 200],
-    queryFn: () => getEvents({ hours: 24, limit: 200 }),
-    refetchInterval: 5_000,
+    queryKey: ['plan-events', 24, selected ? tokens : null],
+    queryFn: () => getEvents({ hours: 24, limit: 200, senderTokens: tokens }),
+    enabled: !selected || tokens.length > 0,
+    refetchInterval: 30_000,
   });
   const controllerToken = selected?.type === 'device'
     ? selected.token
@@ -162,7 +161,7 @@ export function LiveEventFeed({ collapsed, onShowObject, onToggle, view }: LiveE
       <div className="feed-events">
         {eventsQuery.isLoading && <p className="feed-empty">Завантаження подій…</p>}
         {eventsQuery.isError && <p className="feed-empty feed-error">Не вдалося отримати події.</p>}
-        {!eventsQuery.isLoading && !eventsQuery.isError && events.length === 0 && <p className="feed-empty">{selected ? 'Для вибраного об’єкта подій за останні 24 години не знайдено.' : 'U‑PROX не повернув подій за останні 24 години.'}</p>}
+        {!eventsQuery.isLoading && !eventsQuery.isError && events.length === 0 && <p className="feed-empty">{selected ? (tokens.length ? 'Для вибраного об’єкта подій за останні 24 години не знайдено.' : 'U‑PROX не повернув точної прив’язки входів і виходів для цього об’єкта.') : 'U‑PROX не повернув подій за останні 24 години.'}</p>}
         {!eventsQuery.isError && events.map((event) => (
           <article className={`event-${getEventSeverity(event.eventName)}`} key={event.id}>
             <i />

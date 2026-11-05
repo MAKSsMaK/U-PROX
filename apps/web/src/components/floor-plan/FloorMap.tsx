@@ -225,7 +225,7 @@ export function FloorMap() {
                   aria-label={element.name}
                   className={`marker ${element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${showNames ? 'show-name' : ''} ${lastState ? `event-${lastState}` : ''} ${hasFreshEvent ? 'is-recent' : ''} ${selected?.id === element.id ? 'selected' : ''}`}
                   key={element.id}
-                  onClick={() => select({ id: element.id, name: element.name, type: element.type as 'door' | 'device' | 'input', token: element.token, detail: element.detail, deviceToken: element.deviceToken, lastEvent: lastEvent ? { name: lastEvent.eventName, occurredAt: lastEvent.occurredAt } : undefined, floor })}
+                  onClick={() => select({ id: element.id, name: element.name, type: element.type as 'door' | 'device' | 'input', token: element.token, eventTokens: element.eventTokens, detail: element.detail, deviceToken: element.deviceToken, lastEvent: lastEvent ? { name: lastEvent.eventName, occurredAt: lastEvent.occurredAt } : undefined, floor })}
                   style={{ left: `${element.x}%`, top: `${element.y}%` }}
                   title={lastEvent ? `${element.name} · ${lastEvent.eventName} · ${lastEvent.occurredAt}` : `${element.name}${element.token ? ` · токен ${element.token}` : ''}`}
                   type="button"
