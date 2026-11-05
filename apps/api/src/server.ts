@@ -148,11 +148,11 @@ function cameraConfigured() {
   return Boolean(env.HIKVISION_NVR_HOST && env.HIKVISION_NVR_USERNAME && env.HIKVISION_NVR_PASSWORD);
 }
 
-function cameraRtspUrl(channel = env.HIKVISION_CAMERA_TEST_CHANNEL) {
+function cameraRtspUrl(channel = env.HIKVISION_CAMERA_TEST_CHANNEL, stream = 2) {
   if (!cameraConfigured()) throw new Error('Camera integration is not configured');
   const username = encodeURIComponent(env.HIKVISION_NVR_USERNAME!);
   const password = encodeURIComponent(env.HIKVISION_NVR_PASSWORD!);
-  return `rtsp://${username}:${password}@${env.HIKVISION_NVR_HOST}:554/Streaming/Channels/${channel * 100 + 2}`;
+  return `rtsp://${username}:${password}@${env.HIKVISION_NVR_HOST}:554/Streaming/Channels/${channel * 100 + stream}`;
 }
 
 async function createCameraPreview() {
@@ -214,22 +214,28 @@ function cameraFailure(stderr: string, spawnFailed = false) {
 app.get('/api/cameras/:channel/live', async (request, reply) => {
   const { channel } = z.object({ channel: z.coerce.number().int().min(1).max(999) }).parse(request.params);
   if (!cameraConfigured() || !cameraChannels.some((camera) => camera.channel === channel)) return reply.code(404).send({ error: 'Камеру не знайдено' });
-  const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-rw_timeout', '10000000', '-i', cameraRtspUrl(channel), '-an', '-vf', 'fps=5,scale=960:-2', '-q:v', '5', '-f', 'mpjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
-  let stderr = '';
-  child.stderr.on('data', (chunk: Buffer) => { stderr = (stderr + chunk.toString()).slice(-4000); });
-  const first = await new Promise<{ chunk?: Buffer; error?: string }>((resolve) => {
-    let settled = false;
-    const finish = (result: { chunk?: Buffer; error?: string }) => { if (settled) return; settled = true; clearTimeout(timer); resolve(result); };
-    const timer = setTimeout(() => { child.kill(); finish({ error: 'Камера не відповіла вчасно. Перевірте RTSP і доступність камери.' }); }, 15000);
-    child.stdout.once('data', (chunk: Buffer) => { child.stdout.pause(); finish({ chunk }); });
-    child.once('error', () => finish({ error: cameraFailure(stderr, true) }));
-    child.once('close', () => finish({ error: cameraFailure(stderr) }));
-    reply.raw.once('close', () => { if (!settled) { child.kill(); finish({ error: 'З’єднання закрито.' }); } });
-  });
-  if (!first.chunk) { child.kill(); return reply.code(502).send({ error: first.error }); }
+  const startStream = async (stream: number) => {
+    const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-rw_timeout', '10000000', '-i', cameraRtspUrl(channel, stream), '-an', '-vf', 'fps=5,scale=960:-2', '-q:v', '5', '-f', 'mpjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (chunk: Buffer) => { stderr = (stderr + chunk.toString()).slice(-4000); });
+    const result = await new Promise<{ chunk?: Buffer; error?: string; missing?: boolean }>((resolve) => {
+      let settled = false;
+      const finish = (value: { chunk?: Buffer; error?: string; missing?: boolean }) => { if (settled) return; settled = true; clearTimeout(timer); resolve(value); };
+      const timer = setTimeout(() => { child.kill(); finish({ error: 'Камера не відповіла вчасно. Перевірте RTSP і доступність камери.' }); }, 15000);
+      child.stdout.once('data', (chunk: Buffer) => { child.stdout.pause(); finish({ chunk }); });
+      child.once('error', () => finish({ error: cameraFailure(stderr, true) }));
+      child.once('close', () => finish({ error: cameraFailure(stderr), missing: /404|not found/i.test(stderr) }));
+      reply.raw.once('close', () => { if (!settled) { child.kill(); finish({ error: 'З’єднання закрито.' }); } });
+    });
+    return { child, ...result };
+  };
+  let attempt = await startStream(2);
+  if (attempt.missing && !reply.raw.destroyed) attempt = await startStream(1);
+  const { child, chunk } = attempt;
+  if (!chunk) { child.kill(); return reply.code(502).send({ error: attempt.error }); }
   reply.hijack();
   reply.raw.writeHead(200, { 'Content-Type': 'multipart/x-mixed-replace; boundary=ffmpeg', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
-  reply.raw.write(first.chunk);
+  reply.raw.write(chunk);
   child.stdout.pipe(reply.raw);
   child.stdout.resume();
   reply.raw.on('close', () => { child.kill(); });
