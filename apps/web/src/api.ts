@@ -73,6 +73,8 @@ export type PlanCatalogItem = {
   deviceToken: string | null;
   inputNumber: string | null;
   eventTokens?: string[];
+  entranceToken?: string | null;
+  exitToken?: string | null;
 };
 
 export type PlanCatalog = {

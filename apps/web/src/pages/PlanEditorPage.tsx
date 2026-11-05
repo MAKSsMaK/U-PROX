@@ -382,9 +382,13 @@ export function PlanEditorPage() {
                       <span>Входи та виходи визначаються автоматично за точною прив’язкою U‑PROX.</span>
                     </header>
                     <div className="editor-event-token-list">
-                      {(catalog?.inputs ?? []).filter((input) => selectedElement.eventTokens?.includes(input.token)).map((input) => (
-                        <p key={input.token}>{input.name} · {input.token}</p>
-                      ))}
+                      {(() => {
+                        const door = catalog?.doors.find((item) => item.token === selectedElement.token);
+                        return <>
+                          {door?.entranceToken && <p>Вхід · токен {door.entranceToken}</p>}
+                          {door?.exitToken && <p>Вихід · токен {door.exitToken}</p>}
+                        </>;
+                      })()}
                       {!selectedElement.eventTokens?.length && <p>Точної прив’язки U‑PROX немає. Події не показуються.</p>}
                     </div>
                   </section>

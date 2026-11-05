@@ -443,15 +443,13 @@ async function loadPlanCatalog() {
       ? `${label}: ${result.reason instanceof Error ? result.reason.message : 'недоступно'}`
       : null;
 
-  const inputs = inputResult.status === 'fulfilled' ? records(inputResult.value, 'DeviceInput') : [];
-  const doors = doorResult.status === 'fulfilled' ? records(doorResult.value, 'Door').map(catalogItem) : [];
-  for (const door of doors) {
-    door.eventTokens = [...new Set(inputs.filter((input) => {
-      const connected = input.ConnectedTo as UproxxCatalogRecord | undefined;
-      const target = input.DoorToken ?? connected?.Token;
-      return target !== undefined && target !== null && String(target) === door.token;
-    }).map((input) => String(input.Token ?? '')).filter(Boolean))];
-  }
+  const doors = doorResult.status === 'fulfilled' ? records(doorResult.value, 'Door').map((record) => {
+    const token = (value: unknown) => value !== undefined && value !== null && String(value) !== '0' && String(value) !== '' ? String(value) : null;
+    const entranceToken = token(record.EntranceToken);
+    const exitToken = token(record.ExitToken);
+    return { ...catalogItem(record), entranceToken, exitToken,
+      eventTokens: [...new Set([entranceToken, exitToken].filter((value): value is string => value !== null))] };
+  }) : [];
   return {
     doors,
     devices:
