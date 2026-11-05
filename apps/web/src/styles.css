@@ -1617,21 +1617,59 @@ pre {
 .editor-bindings ol { margin: 0; padding: 0; list-style: none; }
 .editor-bindings li {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 22px;
-  gap: 8px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: stretch;
   border-top: 1px solid #1d3048;
-  padding: 11px 13px;
 }
-.editor-bindings li i { display: grid; width: 21px; height: 21px; place-items: center; border: 1px solid currentColor; border-radius: 50%; color: #50d993; font-size: 11px; font-style: normal; }
-.editor-bindings li i.device { color: #4da9ff; }
-.editor-bindings li i.input { color: #f7c354; }
-.editor-bindings li i.label { color: #d9f1ff; border-radius: 3px; }
-.editor-bindings li b, .editor-bindings li small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.editor-bindings li b { color: #dceafa; font-size: 11px; }
-.editor-bindings li small { margin-top: 3px; color: #7895b0; font-size: 9px; }
-.editor-bindings li button { border: 0; background: transparent; color: #a1b4c8; font-size: 20px; cursor: pointer; }
-.editor-bindings li button:hover { color: #ff8a92; }
+.editor-binding-select {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  padding: 11px 13px;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.editor-bindings li.is-selected .editor-binding-select,
+.editor-binding-select:hover { background: #0c293d; }
+.editor-binding-select i { display: grid; width: 21px; height: 21px; place-items: center; border: 1px solid currentColor; border-radius: 50%; color: #50d993; font-size: 11px; font-style: normal; }
+.editor-binding-select i.device { color: #4da9ff; }
+.editor-binding-select i.input { color: #f7c354; }
+.editor-binding-select i.label { color: #d9f1ff; border-radius: 3px; }
+.editor-binding-select b, .editor-binding-select small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-binding-select b { color: #dceafa; font-size: 11px; }
+.editor-binding-select small { margin-top: 3px; color: #7895b0; font-size: 9px; }
+.editor-binding-remove { border: 0; background: transparent; color: #a1b4c8; font-size: 20px; cursor: pointer; }
+.editor-binding-remove:hover { color: #ff8a92; }
+.editor-event-token-editor {
+  margin: 12px;
+  padding: 12px;
+  border: 1px solid #14506d;
+  border-radius: 8px;
+  background: #071827;
+}
+.editor-event-token-editor header { display: grid; gap: 4px; margin-bottom: 10px; }
+.editor-event-token-editor header b { color: #e0f4ff; font-size: 11px; }
+.editor-event-token-editor header span { color: #7c9db8; font-size: 10px; line-height: 1.45; }
+.editor-event-token-editor > input { width: 100%; box-sizing: border-box; min-height: 32px; border: 1px solid #18618a; border-radius: 6px; background: #061524; color: #dbeeff; padding: 0 9px; outline: none; font: inherit; font-size: 11px; }
+.editor-event-token-editor > input:focus { border-color: #1cb9ed; }
+.editor-event-token-list { max-height: 210px; overflow: auto; margin-top: 10px; border: 1px solid #123e57; border-radius: 6px; scrollbar-width: thin; scrollbar-color: #3e8fbe #071827; }
+.editor-event-token-list label { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; padding: 9px; border-bottom: 1px solid #10354b; cursor: pointer; }
+.editor-event-token-list label:last-child { border-bottom: 0; }
+.editor-event-token-list label:hover, .editor-event-token-list label.is-selected { background: #0c3045; }
+.editor-event-token-list input { width: 14px; height: 14px; margin: 2px 0 0; accent-color: #10bde9; }
+.editor-event-token-list b, .editor-event-token-list small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-event-token-list b { color: #dbeeff; font-size: 11px; }
+.editor-event-token-list small { margin-top: 3px; color: #7e9ab5; font-size: 9px; }
+.editor-event-token-list p { margin: 0; padding: 12px; color: #8299b3; font-size: 10px; }
+.editor-event-token-editor footer { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-top: 9px; }
+.editor-event-token-editor footer small { color: #7f9bb5; font-size: 9px; line-height: 1.4; }
+.editor-event-token-editor footer button { flex: 0 0 auto; border: 1px solid #245979; background: #0a2437; color: #ccecff; border-radius: 5px; padding: 5px 7px; font: inherit; font-size: 10px; cursor: pointer; }
+.editor-event-token-editor footer button:hover { border-color: #1cb9ed; color: #fff; }
 .catalog-refresh {
   border: 1px solid #365a83;
   border-radius: 6px;

@@ -68,44 +68,20 @@ export function getEventSeverity(eventName: string): EventSeverity {
 
 type EventObject = { token?: string; eventTokens?: string[]; name: string };
 
-// These words describe a type of object, not a specific access point.  Using
-// one of them as a fallback key made every "door" match every other door.
-const genericAccessPointWords = new Set([
-  'двері', 'двер', 'вихід', 'вхід', 'точка', 'досту', 'контр', 'кнопк', 'систем', 'подія',
-]);
-
-function normalizedWords(value: string) {
-  return value
-    .toLocaleLowerCase('uk-UA')
-    .replace(/[^a-zа-яіїєґ0-9]+/giu, ' ')
-    .split(' ')
-    .filter((word) => word.length >= 5)
-    .map((word) => word.slice(0, 6))
-    .filter((word) => !genericAccessPointWords.has(word));
-}
-
 /**
  * An event is emitted by a U-PROX input (for example, “Скляні двері — вхід”),
  * while a plan marker may be bound to the parent door (“Скляні двері”).
  *
- * Therefore the sender token remains the primary, exact link.  When it points
- * to a different U-PROX entity, use only a deliberately narrow name bridge:
- * at least one non-generic part of the door name must also be present in the
- * input name.  This preserves exact matching where possible without hiding
- * the input events that belong to a door or turnstile marker.
+ * A displayed name is never a reliable key: words such as “двері” are shared
+ * by many independent points.  Only the saved U-PROX tokens are allowed to
+ * associate an event with a marker.
  */
 export function eventMatchesObject(event: EventTableRow, object: EventObject) {
-  // A saved child-token list is an explicit U-PROX binding.  Do not fall
-  // back to words in the name if an event belongs to another access point —
-  // otherwise unrelated doors can inherit each other's activity.
-  if (object.eventTokens !== undefined) {
-    return Boolean(event.senderToken && object.eventTokens.includes(event.senderToken))
-      || Boolean(object.token && event.senderToken === object.token);
-  }
-  if (object.token && event.senderToken && event.senderToken === object.token) return true;
-  const objectWords = normalizedWords(object.name);
-  const pointWords = normalizedWords(event.accessPoint);
-  return objectWords.length > 0 && objectWords.some((word) => pointWords.includes(word));
+  // Each marker must be configured with the exact U-PROX input token(s).
+  // No fallback to a parent token and no matching by name: the latter makes
+  // independent doors with a shared word in their name receive each other's
+  // events. An unconfigured marker deliberately shows no event history.
+  return Boolean(event.senderToken && object.eventTokens?.includes(event.senderToken));
 }
 
 function formatUproxxDate(value?: string) {
