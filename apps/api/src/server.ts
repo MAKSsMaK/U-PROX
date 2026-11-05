@@ -1,4 +1,6 @@
 import Fastify from 'fastify';
+import DigestFetch from 'digest-fetch';
+import { XMLParser } from 'fast-xml-parser';
 import rateLimit from '@fastify/rate-limit';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -146,16 +148,11 @@ function cameraConfigured() {
   return Boolean(env.HIKVISION_NVR_HOST && env.HIKVISION_NVR_USERNAME && env.HIKVISION_NVR_PASSWORD);
 }
 
-function cameraChannelId() {
-  // Hikvision uses 101/102 for its first camera: xx1 main stream, xx2 substream.
-  return env.HIKVISION_CAMERA_TEST_CHANNEL * 100 + 2;
-}
-
-function cameraRtspUrl() {
+function cameraRtspUrl(channel = env.HIKVISION_CAMERA_TEST_CHANNEL) {
   if (!cameraConfigured()) throw new Error('Camera integration is not configured');
   const username = encodeURIComponent(env.HIKVISION_NVR_USERNAME!);
   const password = encodeURIComponent(env.HIKVISION_NVR_PASSWORD!);
-  return `rtsp://${username}:${password}@${env.HIKVISION_NVR_HOST}:554/Streaming/Channels/${cameraChannelId()}`;
+  return `rtsp://${username}:${password}@${env.HIKVISION_NVR_HOST}:554/Streaming/Channels/${channel * 100 + 2}`;
 }
 
 async function createCameraPreview() {
@@ -183,10 +180,40 @@ async function createCameraPreview() {
   return cameraPreviewPending;
 }
 
-app.get('/api/cameras', async () => ({
-  configured: cameraConfigured(),
-  camera: { id: `D${env.HIKVISION_CAMERA_TEST_CHANNEL}`, name: `Камера ${env.HIKVISION_CAMERA_TEST_CHANNEL === 6 ? '205' : env.HIKVISION_CAMERA_TEST_CHANNEL}`, channel: env.HIKVISION_CAMERA_TEST_CHANNEL, stream: 'підпотік' },
-}));
+type CameraChannel = { id: string; name: string; channel: number };
+let cameraChannels: CameraChannel[] = [];
+app.get('/api/cameras', async (_request, reply) => {
+  if (!cameraConfigured()) return { configured: false, cameras: [] };
+  try {
+    const client = new DigestFetch(env.HIKVISION_NVR_USERNAME!, env.HIKVISION_NVR_PASSWORD!);
+    const response = await client.fetch(`http://${env.HIKVISION_NVR_HOST}/ISAPI/ContentMgmt/InputProxy/channels`, { signal: AbortSignal.timeout(10000) });
+    if (!response.ok) throw new Error(`ISAPI HTTP ${response.status}`);
+    const parsed = new XMLParser({ removeNSPrefix: true }).parse(await response.text());
+    const raw = parsed.InputProxyChannelList?.InputProxyChannel;
+    if (!raw) throw new Error('ISAPI did not return camera channels');
+    const list = Array.isArray(raw) ? raw : [raw];
+    cameraChannels = list.map((item: Record<string, unknown>) => ({
+      id: `D${Number(item.id)}`, channel: Number(item.id),
+      name: String(item.name || `Камера D${item.id}`),
+    })).filter((item: CameraChannel) => Number.isInteger(item.channel) && item.channel > 0 && item.channel <= 999);
+    return { configured: true, cameras: cameraChannels };
+  } catch (error) {
+    app.log.warn({ message: error instanceof Error ? error.message : 'ISAPI error' }, 'Camera list unavailable');
+    return reply.code(502).send({ error: 'Не вдалося отримати список камер із реєстратора. Перевірте доступ ISAPI та облікові дані.' });
+  }
+});
+
+app.get('/api/cameras/:channel/live', async (request, reply) => {
+  const { channel } = z.object({ channel: z.coerce.number().int().min(1).max(999) }).parse(request.params);
+  if (!cameraConfigured() || !cameraChannels.some((camera) => camera.channel === channel)) return reply.code(404).send({ error: 'Камеру не знайдено' });
+  const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-rw_timeout', '10000000', '-i', cameraRtspUrl(channel), '-an', '-vf', 'fps=5,scale=960:-2', '-q:v', '5', '-f', 'mpjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'ignore'] });
+  child.once('error', () => { if (!reply.raw.destroyed) reply.raw.destroy(); });
+  reply.hijack();
+  reply.raw.writeHead(200, { 'Content-Type': 'multipart/x-mixed-replace; boundary=ffmpeg', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+  child.stdout.pipe(reply.raw);
+  reply.raw.on('close', () => { child.kill('SIGKILL'); });
+  child.once('close', () => { if (!reply.raw.destroyed) reply.raw.end(); });
+});
 
 app.post('/api/cameras/test-preview', { config: { rateLimit: { max: 8, timeWindow: '1 minute' } } }, async (_request, reply) => {
   if (!cameraConfigured()) return reply.code(409).send({ error: 'Камеру ще не налаштовано на сервері.' });

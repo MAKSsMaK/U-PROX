@@ -198,7 +198,7 @@ export async function getPlanLiveController(token: string): Promise<PlanLiveCont
 
 export type CameraOverview = {
   configured: boolean;
-  camera: { id: string; name: string; channel: number; stream: string };
+  cameras: { id: string; name: string; channel: number }[];
 };
 
 export async function getCameras(): Promise<CameraOverview> {

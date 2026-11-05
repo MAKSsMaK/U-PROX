@@ -123,7 +123,7 @@ export function FloorMap() {
       const lastEvent = lastEventForElement(element, latestEvents);
       if (!lastEvent) return;
       nextObserved.set(element.id, lastEvent.id);
-      if (eventsWereObserved.current && observedEventIds.current.get(element.id) && observedEventIds.current.get(element.id) !== lastEvent.id) {
+      if (eventsWereObserved.current && observedEventIds.current.get(element.id) !== lastEvent.id) {
         newlyObserved[element.id] = Date.now() + 5_000;
       }
     });
@@ -232,7 +232,7 @@ export function FloorMap() {
                 >
                   {planElementIcon(element.type)}
                   {lastState && <i aria-label={`Остання подія: ${lastEvent?.eventName}`} className="marker-event-indicator" />}
-                  {hasFreshEvent && <span aria-hidden="true" className="marker-event-wave" />}
+                  {hasFreshEvent && <span aria-hidden="true" className={`marker-event-wave ${lastState === 'alert' ? 'pulse-alert' : lastState === 'warning' ? 'pulse-warning' : lastEvent?.employee === 'Системна подія' ? 'pulse-system' : 'pulse-access'}`} />}
                   <span className="marker-hover-label" role="tooltip">{element.name}</span>
                 </button>
               );

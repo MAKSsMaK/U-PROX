@@ -105,7 +105,7 @@ export function LiveEventFeed({ collapsed, onShowObject, onToggle, view }: LiveE
             <div className="map-legend-row"><i className="map-legend-state normal" /><span><b>Нормальний стан</b><small>Об’єкт доступний і без тривог</small></span></div>
             <div className="map-legend-row"><i className="map-legend-state warning" /><span><b>Попередження</b><small>Потрібна увага</small></span></div>
             <div className="map-legend-row"><i className="map-legend-state alarm" /><span><b>Тривога або несправність</b><small>Червоний маркер</small></span></div>
-            <div className="map-legend-row"><i className="map-legend-pulse" /><span><b>Нова подія</b><small>Імпульс навколо маркера триває 10 секунд</small></span></div>
+            <div className="map-legend-row"><i className="map-legend-pulse" /><span><b>Нова подія</b><small>Синій — системна подія, зелений — прохід; жовтий та червоний — попередження і тривога. Імпульс триває 5 секунд.</small></span></div>
           </section>
           <div className="map-legend-tip">Натисни маркер на плані, щоб відкрити його події та технічні дані.</div>
         </div>

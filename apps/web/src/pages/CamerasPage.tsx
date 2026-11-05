@@ -1,44 +1,27 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { getCameras, refreshCameraPreview } from '../api';
+import { useQuery } from '@tanstack/react-query';
+import { getCameras } from '../api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 
 export function CamerasPage() {
-  const [previewUrl, setPreviewUrl] = useState('');
+  const [selected, setSelected] = useState<number>();
+  const [streamError, setStreamError] = useState(false);
+  const [streamVersion, setStreamVersion] = useState(0);
   const overview = useQuery({ queryKey: ['cameras'], queryFn: getCameras, staleTime: 60_000 });
-  const preview = useMutation({
-    mutationFn: refreshCameraPreview,
-    onSuccess: (result) => setPreviewUrl(result.previewUrl),
-  });
-  const camera = overview.data?.camera;
-  const configured = overview.data?.configured ?? false;
-
-  return <DashboardLayout>
-    <main className="cameras-page">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">ВІДЕОСПОСТЕРЕЖЕННЯ · HIKVISION</p>
-          <h1>Камери</h1>
-          <span>Тестове підключення: сервер сам отримує кадр із NVR, доступи не передаються в браузер.</span>
-        </div>
-        <span className={`camera-status ${configured ? 'ready' : ''}`}><i />{configured ? 'ГОТОВО ДО ПІДКЛЮЧЕННЯ' : 'ПОТРІБНЕ НАЛАШТУВАННЯ'}</span>
-      </header>
-      <section className="camera-grid">
-        <article className="camera-card">
-          <div className="camera-card-heading"><span className="camera-icon">◉</span><div><h2>{camera?.name ?? 'Тестова камера'}</h2><p>{camera ? `${camera.id} · канал ${camera.channel} · ${camera.stream}` : 'Завантаження параметрів…'}</p></div></div>
-          <div className="camera-preview" aria-live="polite">
-            {previewUrl ? <img alt={`Останній кадр ${camera?.name ?? 'камери'}`} src={previewUrl} /> : <div className="camera-preview-placeholder"><b>◉</b><span>Кадр ще не отримано</span><small>Натисніть «Оновити кадр», щоб перевірити підключення.</small></div>}
-            {preview.isPending && <div className="camera-loading">Отримуємо кадр…</div>}
-          </div>
-          {preview.isError && <p className="camera-error">{preview.error.message}</p>}
-          <footer><button className="camera-refresh" disabled={!configured || preview.isPending} onClick={() => preview.mutate()} type="button">{preview.isPending ? 'Отримуємо кадр…' : 'Оновити кадр'}</button><span>Тестовий режим · один JPEG-кадр</span></footer>
-        </article>
-        <aside className="camera-info">
-          <h2>Як це працює</h2>
-          <ol><li>Сервер підключається до NVR через RTSP.</li><li>FFmpeg бере один кадр із підпотоку.</li><li>Браузер отримує лише готове зображення.</li></ol>
-          <p>Після успішної перевірки тут підключимо постійний живий потік.</p>
-        </aside>
-      </section>
-    </main>
-  </DashboardLayout>;
+  const cameras = overview.data?.cameras ?? [];
+  const camera = cameras.find((item) => item.channel === selected);
+  return <DashboardLayout><main className="cameras-page">
+    <header className="page-header"><div><p className="eyebrow">ВІДЕОСПОСТЕРЕЖЕННЯ · HIKVISION</p><h1>Камери</h1><span>Виберіть камеру для живого перегляду.</span></div>
+      <span className={`camera-status ${overview.data?.configured ? 'ready' : ''}`}><i />{overview.isError ? 'ПОМИЛКА ПІДКЛЮЧЕННЯ' : overview.data?.configured ? 'РЕЄСТРАТОР НАЛАШТОВАНО' : 'ПОТРІБНЕ НАЛАШТУВАННЯ'}</span></header>
+    <section className="camera-grid"><article className="camera-card">
+      <div className="camera-card-heading"><span className="camera-icon">◉</span><div><h2>{camera?.name ?? 'Оберіть камеру'}</h2><p>{camera ? `${camera.id} · живий перегляд` : 'Список камер праворуч'}</p></div></div>
+      <div className="camera-preview">{camera && !streamError ? <img key={`${camera.channel}-${streamVersion}`} src={`/api/cameras/${camera.channel}/live?v=${streamVersion}`} onError={() => setStreamError(true)} alt={`Відео: ${camera.name}`} /> : <div className="camera-preview-placeholder"><b>◉</b><span>{streamError ? 'Не вдалося отримати відео' : 'Камеру не вибрано'}</span><small>{streamError ? 'Перевірте, чи камера онлайн та доступний її підпотік.' : 'Виберіть камеру зі списку.'}</small></div>}</div>
+      <footer><button className="camera-refresh" disabled={!camera} onClick={() => { setStreamError(false); setStreamVersion((v) => v + 1); }} type="button">Перепідключити</button><span>Живе відео · підпотік</span></footer>
+    </article><aside className="camera-info"><h2>Камери ({cameras.length})</h2>
+      {overview.isLoading && <p>Завантажуємо список…</p>}{overview.isError && <p>Не вдалося отримати список камер. Перевірте підключення до реєстратора.</p>}
+      {overview.data && !overview.data.configured && <p>Заповніть налаштування реєстратора на сервері.</p>}
+      <button className="camera-refresh" onClick={() => overview.refetch()} type="button">Оновити список</button>
+      <ol>{cameras.map((item) => <li key={item.id}><button className="camera-refresh" aria-pressed={selected === item.channel} onClick={() => { setSelected(item.channel); setStreamError(false); setStreamVersion((v) => v + 1); }} type="button">{item.id} · {item.name}</button></li>)}</ol>
+    </aside></section>
+  </main></DashboardLayout>;
 }
