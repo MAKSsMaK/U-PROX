@@ -29,26 +29,27 @@ export function EventsPage() {
   const personnelQuery = useQuery({ queryKey: ['personnel'], queryFn: getPersonnel, staleTime: 30_000 });
   const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: getPlanCatalog, staleTime: 60_000 });
   const eventsQuery = useQuery({
-    queryKey: ['events', hours, range, filters, eventMode, offset],
+    queryKey: ['events', hours, range, filters, eventMode, offset, catalogQuery.dataUpdatedAt],
     queryFn: () => getEvents({
       hours,
       limit: pageSize,
       offset,
       ...(hours === 0 ? { from: new Date(range.from).getTime(), to: new Date(range.to).getTime() } : {}),
-      ...filters,
+      search: filters.search,
+      department: filters.department,
+      senderTokens: filters.accessPoint
+        ? (catalogQuery.data?.doors.find((door) => door.token === filters.accessPoint)?.eventTokens?.length
+          ? catalogQuery.data.doors.find((door) => door.token === filters.accessPoint)!.eventTokens!
+          : ['__no_link__'])
+        : [],
       eventMode,
     }),
     refetchInterval: offset === 0 && hours === 24 && !filters.search && !filters.department && !filters.accessPoint ? 5_000 : 60_000,
   });
   const rows = toEventTableRows(eventsQuery.data);
   const departments = personnelQuery.data?.departments ?? [];
-  const accessPoints = useMemo(() => {
-    const catalog = catalogQuery.data;
-    if (!catalog) return filters.accessPoint ? [filters.accessPoint] : [];
-    const names = new Set([...catalog.doors, ...catalog.devices, ...catalog.inputs].map((item) => item.name));
-    if (filters.accessPoint) names.add(filters.accessPoint);
-    return [...names].filter((name) => name && name !== '—').sort((left, right) => left.localeCompare(right, 'uk-UA'));
-  }, [catalogQuery.data, filters.accessPoint]);
+  const accessPoints = useMemo(() => [...(catalogQuery.data?.doors ?? [])]
+    .sort((left, right) => left.name.localeCompare(right.name, 'uk-UA')), [catalogQuery.data]);
   const periodLabel = hours === 24 ? 'останні 24 години' : hours === 72 ? 'останні 3 дні' : hours === 168 ? 'останні 7 днів' : 'власний діапазон';
   const choosePeriod = (value: number) => {
     setHours(value);
@@ -92,7 +93,7 @@ export function EventsPage() {
             {hours === 0 && <><label>Від<input onChange={(event) => setRange((current) => ({ ...current, from: event.target.value }))} type="datetime-local" value={range.from} /></label><label>До<input onChange={(event) => setRange((current) => ({ ...current, to: event.target.value }))} type="datetime-local" value={range.to} /></label></>}
             <label className="events-filter-search">Пошук<input onChange={(event) => setDraftFilters((current) => ({ ...current, search: event.target.value }))} placeholder="ПІБ, картка або подія" type="search" value={draftFilters.search} /></label>
             <label>Відділ<select onChange={(event) => setDraftFilters((current) => ({ ...current, department: event.target.value }))} value={draftFilters.department}><option value="">Усі відділи</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></label>
-            <label>Точка доступу<select onChange={(event) => setDraftFilters((current) => ({ ...current, accessPoint: event.target.value }))} value={draftFilters.accessPoint}><option value="">Усі точки</option>{accessPoints.map((accessPoint) => <option key={accessPoint} value={accessPoint}>{accessPoint}</option>)}</select></label>
+            <label>Точка доступу<select onChange={(event) => setDraftFilters((current) => ({ ...current, accessPoint: event.target.value }))} value={draftFilters.accessPoint}><option value="">Усі точки</option>{accessPoints.map((accessPoint) => <option key={accessPoint.token} value={accessPoint.token}>{accessPoint.name}</option>)}</select></label>
             <button type="submit">Застосувати</button><button className="events-filter-reset" onClick={resetFilters} type="button">Скинути</button>
           </form>
           {eventsQuery.isError ? (
