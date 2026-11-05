@@ -161,7 +161,7 @@ async function createCameraPreview() {
     const outputFile = `${cameraPreviewFile}.tmp`;
     const child = spawn(env.HIKVISION_FFMPEG_PATH, [
       '-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp',
-      '-rw_timeout', '10000000', '-i', cameraRtspUrl(), '-frames:v', '1', '-q:v', '3', '-y', outputFile,
+      '-i', cameraRtspUrl(), '-frames:v', '1', '-q:v', '3', '-y', outputFile,
     ], { stdio: ['ignore', 'ignore', 'pipe'] });
     let stderr = '';
     child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
@@ -237,7 +237,7 @@ app.get('/api/cameras/:channel/diagnostics', async (request, reply) => {
   const { channel } = z.object({ channel: z.coerce.number().int().min(1).max(999) }).parse(request.params);
   if (!cameraConfigured()) return reply.code(409).send({ error: 'Реєстратор не налаштовано.' });
   const check = (stream: number) => new Promise<{ stream: number; result: string; detail: string }>((resolve) => {
-    const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-rw_timeout', '10000000', '-i', cameraRtspUrl(channel, stream), '-frames:v', '1', '-f', 'null', '-'], { stdio: ['ignore', 'ignore', 'pipe'] });
+    const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-i', cameraRtspUrl(channel, stream), '-frames:v', '1', '-f', 'null', '-'], { stdio: ['ignore', 'ignore', 'pipe'] });
     let stderr = '';
     child.stderr.on('data', (chunk: Buffer) => { stderr = (stderr + chunk.toString()).slice(-4000); });
     let done = false;
@@ -261,7 +261,7 @@ app.get('/api/cameras/:channel/live', async (request, reply) => {
   const { channel } = z.object({ channel: z.coerce.number().int().min(1).max(999) }).parse(request.params);
   if (!cameraConfigured() || !cameraChannels.some((camera) => camera.channel === channel)) return reply.code(404).send({ error: 'Камеру не знайдено' });
   const startStream = async (stream: number) => {
-    const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-rw_timeout', '10000000', '-i', cameraRtspUrl(channel, stream), '-an', '-vf', 'fps=5,scale=960:-2', '-q:v', '5', '-f', 'mpjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-i', cameraRtspUrl(channel, stream), '-an', '-vf', 'fps=5,scale=960:-2', '-q:v', '5', '-f', 'mpjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
     child.stderr.on('data', (chunk: Buffer) => { stderr = (stderr + chunk.toString()).slice(-4000); });
     const result = await new Promise<{ chunk?: Buffer; error?: string; missing?: boolean }>((resolve) => {
