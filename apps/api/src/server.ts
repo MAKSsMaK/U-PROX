@@ -203,6 +203,28 @@ app.get('/api/cameras', async (_request, reply) => {
   }
 });
 
+app.get('/api/cameras/diagnostics', async (_request, reply) => {
+  if (!cameraConfigured()) return reply.code(409).send({ error: 'Реєстратор не налаштовано.' });
+  const client = new DigestFetch(env.HIKVISION_NVR_USERNAME!, env.HIKVISION_NVR_PASSWORD!);
+  const paths = ['/ISAPI/Streaming/channels', '/ISAPI/System/Network/ports'];
+  const results = await Promise.all(paths.map(async (path) => {
+    try {
+      const response = await client.fetch(`http://${env.HIKVISION_NVR_HOST}${path}`, { signal: AbortSignal.timeout(10000) });
+      if (!response.ok) return { endpoint: path, status: response.status };
+      const document = new XMLParser({ removeNSPrefix: true }).parse(await response.text());
+      if (path.includes('Streaming')) {
+        const raw = document.StreamingChannelList?.StreamingChannel;
+        const channels = raw ? (Array.isArray(raw) ? raw : [raw]) : [];
+        return { endpoint: path, status: response.status, channels: channels.map((item: Record<string, any>) => ({ id: item.id, name: item.channelName, enabled: item.enabled, video: item.Video ? { codec: item.Video.videoCodecType, width: item.Video.videoResolutionWidth, height: item.Video.videoResolutionHeight } : undefined })) };
+      }
+      const raw = document.AdminAccessProtocolList?.AdminAccessProtocol;
+      const ports = raw ? (Array.isArray(raw) ? raw : [raw]) : [];
+      return { endpoint: path, status: response.status, ports: ports.map((item: Record<string, unknown>) => ({ protocol: item.id, port: item.portNo, enabled: item.enabled })) };
+    } catch { return { endpoint: path, error: 'Запит не вдався' }; }
+  }));
+  return { results };
+});
+
 function cameraFailure(stderr: string, spawnFailed = false) {
   if (spawnFailed) return 'FFmpeg не знайдено на сервері. Перевірте HIKVISION_FFMPEG_PATH.';
   if (/401|unauthorized/i.test(stderr)) return 'RTSP відхилив облікові дані або доступ до камери.';
