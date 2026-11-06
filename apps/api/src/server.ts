@@ -194,7 +194,8 @@ async function createCameraPreview() {
   return cameraPreviewPending;
 }
 
-type CameraChannel = { id: string; name: string; channel: number; recorder: string };
+type CameraChannel = { id: string; name: string; channel: number; recorder: string; online: boolean | null; denied: boolean };
+const deniedCameraStreams = new Map<string, number>();
 const cameraChannels = new Map<string, CameraChannel[]>();
 app.get('/api/cameras', async () => {
   if (!cameraConfigured()) return { configured: false, cameras: [], recorders: [] };
@@ -207,10 +208,26 @@ app.get('/api/cameras', async () => {
       const raw = parsed.InputProxyChannelList?.InputProxyChannel;
       const list = raw ? (Array.isArray(raw) ? raw : [raw]) : [];
       if (!parsed.InputProxyChannelList) throw new Error('ISAPI did not return camera channels');
-      const cameras: CameraChannel[] = list.map((item: Record<string, unknown>) => ({
-        id: `D${Number(item.id)}`, channel: Number(item.id), recorder: host,
-        name: String(item.name || `Камера D${item.id}`),
-      })).filter((item: CameraChannel) => Number.isInteger(item.channel) && item.channel > 0 && item.channel <= 999);
+      const statuses = new Map<number, boolean>();
+      try {
+        const statusResponse = await client.fetch(`http://${host}/ISAPI/ContentMgmt/InputProxy/channels/status`, { signal: AbortSignal.timeout(5000) });
+        if (statusResponse.ok) {
+          const result = new XMLParser({ removeNSPrefix: true }).parse(await statusResponse.text());
+          const rawStatus = result.InputProxyChannelStatusList?.InputProxyChannelStatus;
+          for (const entry of rawStatus ? (Array.isArray(rawStatus) ? rawStatus : [rawStatus]) : []) {
+            const online = entry.sourceInputPortDescriptor?.online ?? entry.online;
+            if (online === true || online === false || online === 'true' || online === 'false') statuses.set(Number(entry.id), String(online) === 'true');
+          }
+        }
+      } catch { /* A recorder may not expose status to this account. */ }
+      const cameras: CameraChannel[] = list.map((item: Record<string, any>) => {
+        const channel = Number(item.id);
+        const online = statuses.get(channel) ?? (typeof item.sourceInputPortDescriptor?.online === 'boolean' ? item.sourceInputPortDescriptor.online : null);
+        const key = `${host}/${channel}`;
+        const until = deniedCameraStreams.get(key) ?? 0;
+        if (until && until <= Date.now()) deniedCameraStreams.delete(key);
+        return { id: `D${channel}`, channel, recorder: host, name: String(item.name || `Камера D${item.id}`), online, denied: until > Date.now() };
+      }).filter((item: CameraChannel) => Number.isInteger(item.channel) && item.channel > 0 && item.channel <= 999);
       cameraChannels.set(host, cameras);
       return { host, available: true, count: cameras.length, cameras };
     } catch (error) {
@@ -309,7 +326,8 @@ app.get('/api/cameras/:channel/live', async (request, reply) => {
   let attempt = await startStream(2);
   if (attempt.missing && !reply.raw.destroyed) attempt = await startStream(1);
   const { child, chunk } = attempt;
-  if (!chunk) { child.kill(); if (reply.raw.destroyed) return; return reply.code(502).send({ error: attempt.error }); }
+  if (!chunk) { child.kill(); if (reply.raw.destroyed) return; if (attempt.error?.includes('облікові дані')) deniedCameraStreams.set(`${host}/${channel}`, Date.now() + 5 * 60_000); return reply.code(502).send({ error: attempt.error }); }
+  deniedCameraStreams.delete(`${host}/${channel}`);
   if (reply.raw.destroyed) { child.kill(); return; }
   reply.raw.once('close', () => { child.kill(); });
   if (reply.raw.destroyed) { child.kill(); return; }
