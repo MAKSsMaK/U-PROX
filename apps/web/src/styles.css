@@ -2132,3 +2132,7 @@ pre {
 .camera-preview:fullscreen img { width: 100%; height: 100%; object-fit: contain; }
 .camera-fullscreen { position: absolute; right: 14px; bottom: 14px; z-index: 1; border: 1px solid #50b9e7; border-radius: 6px; padding: 9px 12px; background: #061b2ddd; color: #eaf8ff; font: 700 12px Manrope; cursor: pointer; }
 .camera-fullscreen:hover, .camera-fullscreen:focus-visible { background: #075d85; }
+
+.plan-camera-preview { position: relative; overflow: hidden; border-radius: 6px; background: #02060b; }
+.plan-camera-preview:fullscreen { width: 100%; height: 100%; display: grid; place-items: center; }
+.plan-camera-preview:fullscreen img { width: 100%; height: 100%; aspect-ratio: auto; object-fit: contain; }

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getCameras, getEvents, getPlanElements, getPlanLiveController } from '../../api';
@@ -24,6 +24,22 @@ function CameraPlanPreview({ recorder, channel, name }: { recorder: string; chan
   const [error, setError] = useState(false);
   const [version, setVersion] = useState(0);
   const ref = useRef<HTMLImageElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState('');
+  useEffect(() => {
+    const update = () => setFullscreen(document.fullscreenElement === previewRef.current);
+    document.addEventListener('fullscreenchange', update);
+    return () => document.removeEventListener('fullscreenchange', update);
+  }, []);
+  const toggleFullscreen = async () => {
+    try {
+      setFullscreenError('');
+      if (document.fullscreenElement === previewRef.current) await document.exitFullscreen();
+      else if (previewRef.current?.requestFullscreen) await previewRef.current.requestFullscreen();
+      else setFullscreenError('Браузер не підтримує повноекранний режим.');
+    } catch { setFullscreenError('Не вдалося відкрити повноекранний режим.'); }
+  };
   const cameras = useQuery({ queryKey: ['cameras'], queryFn: getCameras, staleTime: 60_000 });
   const camera = cameras.data?.cameras.find((item) => item.recorder === recorder && item.channel === channel);
   useLayoutEffect(() => {
@@ -34,7 +50,8 @@ function CameraPlanPreview({ recorder, channel, name }: { recorder: string; chan
   }, [recorder, channel, version, playing, Boolean(camera)]);
   return <div className="plan-camera-view">
     <p>{recorder} · D{channel}</p>
-    {cameras.isLoading ? <p>Завантаження камери…</p> : !camera ? <p>Камеру не знайдено або реєстратор недоступний.</p> : playing && !error ? <img ref={ref} alt={`Відео: ${name}`} onError={() => { setError(true); setPlaying(false); }} /> : <p>{error ? 'Не вдалося отримати відео.' : 'Відео зупинено.'}</p>}
+    {cameras.isLoading ? <p>Завантаження камери…</p> : !camera ? <p>Камеру не знайдено або реєстратор недоступний.</p> : playing && !error ? <div className="plan-camera-preview" ref={previewRef}><img ref={ref} alt={`Відео: ${name}`} onError={() => { setError(true); setPlaying(false); }} /><button className="camera-fullscreen" onClick={() => void toggleFullscreen()} type="button" aria-label={fullscreen ? 'Вийти з повного екрана' : 'Відкрити на повний екран'}>{fullscreen ? '⤡ Згорнути' : '⛶ На весь екран'}</button></div> : <p>{error ? 'Не вдалося отримати відео.' : 'Відео зупинено.'}</p>}
+    {fullscreenError && <p role="alert">{fullscreenError}</p>}
     {camera && <button className="plan-details-action" type="button" onClick={() => { if (playing) setPlaying(false); else { setError(false); setVersion((value) => value + 1); setPlaying(true); } }}>{playing ? 'Зупинити відео' : 'Увімкнути відео'}</button>}
   </div>;
 }
