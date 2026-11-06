@@ -57,6 +57,8 @@ type EmployeeDirectory = { employees: unknown[]; expiresAt: number };
 let employeeDirectory: EmployeeDirectory | undefined;
 type CachedImage = { content: Buffer; contentType: string; expiresAt: number };
 const images = new Map<string, CachedImage>();
+const IMAGE_CACHE_MAX_BYTES = 32 * 1024 * 1024;
+let imageCacheBytes = 0;
 const LIVE_CACHE_MS = 5_000;
 const UPROX_EVENT_PAGE_SIZE = 200;
 const UPROX_REPORT_MAX_EVENTS = 100_000;
@@ -270,7 +272,7 @@ app.get('/api/cameras/:channel/live', async (request, reply) => {
   if (activeCameraStreams >= maxCameraStreams) return reply.code(503).send({ error: 'Забагато одночасних відеопотоків. Закрийте зайві перегляди та спробуйте ще раз.' });
   const startStream = async (stream: number) => {
     activeCameraStreams += 1;
-    const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-i', cameraRtspUrl(channel, stream), '-an', '-vf', 'fps=5,scale=960:-2', '-q:v', '5', '-f', 'mpjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-i', cameraRtspUrl(channel, stream), '-threads', '2', '-an', '-vf', 'fps=5,scale=640:-2', '-q:v', '7', '-f', 'mpjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
     let released = false;
     const release = () => { if (!released) { released = true; activeCameraStreams -= 1; } };
     child.once('close', release);
@@ -1019,10 +1021,11 @@ async function getEventsRange(from: number, to: number, limit: number) {
     range.refreshedAt = Date.now();
     range.expiresAt = range.refreshedAt + LIVE_CACHE_MS;
     range.pending = undefined;
-    if (eventRangeCache.size > 12) {
-      for (const [cacheKey, value] of eventRangeCache) {
-        if (!value.pending && value.expiresAt <= Date.now()) eventRangeCache.delete(cacheKey);
-      }
+    // Large report scans can contain tens of thousands of enriched records.
+    // Share an in-flight scan, but do not retain it in the live cache.
+    if (events.length > 5_000) eventRangeCache.delete(key);
+    for (const [cacheKey, value] of eventRangeCache) {
+      if (!value.pending && (value.expiresAt <= Date.now() || eventRangeCache.size > 12)) eventRangeCache.delete(cacheKey);
     }
     return range;
   } catch (error) {
@@ -1041,13 +1044,12 @@ function imageContentType(content: Buffer) {
 
 async function getImage(imageToken: string) {
   const cached = images.get(imageToken);
-  if (cached && cached.expiresAt > Date.now()) return cached;
-
-  if (images.size >= 2_000) {
-    for (const [token, image] of images) {
-      if (image.expiresAt <= Date.now()) images.delete(token);
-    }
+  if (cached && cached.expiresAt > Date.now()) {
+    images.delete(imageToken);
+    images.set(imageToken, cached);
+    return cached;
   }
+  if (cached) { images.delete(imageToken); imageCacheBytes -= cached.content.length; }
 
   const response = (await uproxx('ImageGet', {
     Language: 'uk',
@@ -1063,7 +1065,18 @@ async function getImage(imageToken: string) {
     contentType: imageContentType(content),
     expiresAt: Date.now() + 60 * 60_000,
   };
-  if (images.size < 2_000) images.set(imageToken, image);
+  if (content.length <= IMAGE_CACHE_MAX_BYTES) {
+    while (images.size && (imageCacheBytes + content.length > IMAGE_CACHE_MAX_BYTES || images.size >= 500)) {
+      const oldestKey = images.keys().next().value!;
+      imageCacheBytes -= images.get(oldestKey)!.content.length;
+      images.delete(oldestKey);
+    }
+    const existing = images.get(imageToken);
+    if (existing) imageCacheBytes -= existing.content.length;
+    images.delete(imageToken);
+    images.set(imageToken, image);
+    imageCacheBytes += content.length;
+  }
   return image;
 }
 
