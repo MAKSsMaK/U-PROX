@@ -25,6 +25,7 @@ const env = z
     CONTROL_RATE_LIMIT_PER_MINUTE: z.coerce.number().default(12),
     PLAN_STORAGE_FILE: z.string().optional(),
     HIKVISION_NVR_HOST: z.string().trim().optional(),
+    HIKVISION_NVR_HOSTS: z.string().trim().optional(),
     HIKVISION_NVR_USERNAME: z.string().trim().optional(),
     HIKVISION_NVR_PASSWORD: z.string().optional(),
     HIKVISION_CAMERA_TEST_CHANNEL: z.coerce.number().int().min(1).max(99).default(6),
@@ -150,15 +151,22 @@ app.get('/api/health', async () => ({
   uproxxBase: env.MOCK_UPROX === 'true' ? null : env.UPROX_BASE_URL,
 }));
 
+const cameraHosts = [...new Set((env.HIKVISION_NVR_HOSTS || env.HIKVISION_NVR_HOST || '').split(',').map((host) => host.trim()).filter(Boolean))];
+if (cameraHosts.some((host) => !/^[a-zA-Z0-9.-]+$/.test(host))) throw new Error('Invalid HIKVISION_NVR_HOSTS');
 function cameraConfigured() {
-  return Boolean(env.HIKVISION_NVR_HOST && env.HIKVISION_NVR_USERNAME && env.HIKVISION_NVR_PASSWORD);
+  return Boolean(cameraHosts.length && env.HIKVISION_NVR_USERNAME && env.HIKVISION_NVR_PASSWORD);
+}
+function cameraHostFromQuery(query: unknown) {
+  const parsed = z.object({ recorder: z.string().optional() }).parse(query);
+  const host = parsed.recorder || cameraHosts[0];
+  return cameraHosts.includes(host) ? host : undefined;
 }
 
-function cameraRtspUrl(channel = env.HIKVISION_CAMERA_TEST_CHANNEL, stream = 2) {
+function cameraRtspUrl(channel = env.HIKVISION_CAMERA_TEST_CHANNEL, stream = 2, host = cameraHosts[0]) {
   if (!cameraConfigured()) throw new Error('Camera integration is not configured');
   const username = encodeURIComponent(env.HIKVISION_NVR_USERNAME!);
   const password = encodeURIComponent(env.HIKVISION_NVR_PASSWORD!);
-  return `rtsp://${username}:${password}@${env.HIKVISION_NVR_HOST}:554/Streaming/Channels/${channel * 100 + stream}`;
+  return `rtsp://${username}:${password}@${host}:554/Streaming/Channels/${channel * 100 + stream}`;
 }
 
 async function createCameraPreview() {
@@ -186,27 +194,32 @@ async function createCameraPreview() {
   return cameraPreviewPending;
 }
 
-type CameraChannel = { id: string; name: string; channel: number };
-let cameraChannels: CameraChannel[] = [];
-app.get('/api/cameras', async (_request, reply) => {
-  if (!cameraConfigured()) return { configured: false, cameras: [] };
-  try {
-    const client = new DigestFetch(env.HIKVISION_NVR_USERNAME!, env.HIKVISION_NVR_PASSWORD!);
-    const response = await client.fetch(`http://${env.HIKVISION_NVR_HOST}/ISAPI/ContentMgmt/InputProxy/channels`, { signal: AbortSignal.timeout(10000) });
-    if (!response.ok) throw new Error(`ISAPI HTTP ${response.status}`);
-    const parsed = new XMLParser({ removeNSPrefix: true }).parse(await response.text());
-    const raw = parsed.InputProxyChannelList?.InputProxyChannel;
-    if (!raw) throw new Error('ISAPI did not return camera channels');
-    const list = Array.isArray(raw) ? raw : [raw];
-    cameraChannels = list.map((item: Record<string, unknown>) => ({
-      id: `D${Number(item.id)}`, channel: Number(item.id),
-      name: String(item.name || `Камера D${item.id}`),
-    })).filter((item: CameraChannel) => Number.isInteger(item.channel) && item.channel > 0 && item.channel <= 999);
-    return { configured: true, cameras: cameraChannels };
-  } catch (error) {
-    app.log.warn({ message: error instanceof Error ? error.message : 'ISAPI error' }, 'Camera list unavailable');
-    return reply.code(502).send({ error: 'Не вдалося отримати список камер із реєстратора. Перевірте доступ ISAPI та облікові дані.' });
-  }
+type CameraChannel = { id: string; name: string; channel: number; recorder: string };
+const cameraChannels = new Map<string, CameraChannel[]>();
+app.get('/api/cameras', async () => {
+  if (!cameraConfigured()) return { configured: false, cameras: [], recorders: [] };
+  const recorders = await Promise.all(cameraHosts.map(async (host) => {
+    try {
+      const client = new DigestFetch(env.HIKVISION_NVR_USERNAME!, env.HIKVISION_NVR_PASSWORD!);
+      const response = await client.fetch(`http://${host}/ISAPI/ContentMgmt/InputProxy/channels`, { signal: AbortSignal.timeout(10000) });
+      if (!response.ok) throw new Error(`ISAPI HTTP ${response.status}`);
+      const parsed = new XMLParser({ removeNSPrefix: true }).parse(await response.text());
+      const raw = parsed.InputProxyChannelList?.InputProxyChannel;
+      const list = raw ? (Array.isArray(raw) ? raw : [raw]) : [];
+      if (!parsed.InputProxyChannelList) throw new Error('ISAPI did not return camera channels');
+      const cameras: CameraChannel[] = list.map((item: Record<string, unknown>) => ({
+        id: `D${Number(item.id)}`, channel: Number(item.id), recorder: host,
+        name: String(item.name || `Камера D${item.id}`),
+      })).filter((item: CameraChannel) => Number.isInteger(item.channel) && item.channel > 0 && item.channel <= 999);
+      cameraChannels.set(host, cameras);
+      return { host, available: true, count: cameras.length, cameras };
+    } catch (error) {
+      cameraChannels.delete(host);
+      app.log.warn({ host, message: error instanceof Error ? error.message : 'ISAPI error' }, 'Camera list unavailable');
+      return { host, available: false, count: 0, cameras: [] as CameraChannel[] };
+    }
+  }));
+  return { configured: true, cameras: recorders.flatMap((recorder) => recorder.cameras), recorders: recorders.map(({ host, available, count }) => ({ host, available, count })) };
 });
 
 app.get('/api/cameras/diagnostics', async (_request, reply) => {
@@ -215,7 +228,7 @@ app.get('/api/cameras/diagnostics', async (_request, reply) => {
   const paths = ['/ISAPI/Streaming/channels', '/ISAPI/System/Network/ports'];
   const results = await Promise.all(paths.map(async (path) => {
     try {
-      const response = await client.fetch(`http://${env.HIKVISION_NVR_HOST}${path}`, { signal: AbortSignal.timeout(10000) });
+      const response = await client.fetch(`http://${cameraHosts[0]}${path}`, { signal: AbortSignal.timeout(10000) });
       if (!response.ok) return { endpoint: path, status: response.status };
       const document = new XMLParser({ removeNSPrefix: true }).parse(await response.text());
       if (path.includes('Streaming')) {
@@ -242,8 +255,10 @@ function cameraFailure(stderr: string, spawnFailed = false) {
 app.get('/api/cameras/:channel/diagnostics', async (request, reply) => {
   const { channel } = z.object({ channel: z.coerce.number().int().min(1).max(999) }).parse(request.params);
   if (!cameraConfigured()) return reply.code(409).send({ error: 'Реєстратор не налаштовано.' });
+  const host = cameraHostFromQuery(request.query);
+  if (!host) return reply.code(404).send({ error: 'Реєстратор не знайдено.' });
   const check = (stream: number) => new Promise<{ stream: number; result: string; detail: string }>((resolve) => {
-    const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-i', cameraRtspUrl(channel, stream), '-frames:v', '1', '-f', 'null', '-'], { stdio: ['ignore', 'ignore', 'pipe'] });
+    const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-i', cameraRtspUrl(channel, stream, host), '-frames:v', '1', '-f', 'null', '-'], { stdio: ['ignore', 'ignore', 'pipe'] });
     let stderr = '';
     child.stderr.on('data', (chunk: Buffer) => { stderr = (stderr + chunk.toString()).slice(-4000); });
     let done = false;
@@ -268,11 +283,12 @@ const maxCameraStreams = 4;
 
 app.get('/api/cameras/:channel/live', async (request, reply) => {
   const { channel } = z.object({ channel: z.coerce.number().int().min(1).max(999) }).parse(request.params);
-  if (!cameraConfigured() || !cameraChannels.some((camera) => camera.channel === channel)) return reply.code(404).send({ error: 'Камеру не знайдено' });
+  const host = cameraHostFromQuery(request.query);
+  if (!cameraConfigured() || !host || !cameraChannels.get(host)?.some((camera) => camera.channel === channel)) return reply.code(404).send({ error: 'Камеру не знайдено' });
   if (activeCameraStreams >= maxCameraStreams) return reply.code(503).send({ error: 'Забагато одночасних відеопотоків. Закрийте зайві перегляди та спробуйте ще раз.' });
   const startStream = async (stream: number) => {
     activeCameraStreams += 1;
-    const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-i', cameraRtspUrl(channel, stream), '-threads', '2', '-an', '-vf', 'fps=5,scale=640:-2', '-q:v', '7', '-f', 'mpjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-i', cameraRtspUrl(channel, stream, host), '-threads', '2', '-an', '-vf', 'fps=5,scale=640:-2', '-q:v', '7', '-f', 'mpjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
     let released = false;
     const release = () => { if (!released) { released = true; activeCameraStreams -= 1; } };
     child.once('close', release);
