@@ -15,18 +15,7 @@ export function CamerasPage() {
       <span className={`camera-status ${overview.data?.configured ? 'ready' : ''}`}><i />{overview.isError ? 'ПОМИЛКА ПІДКЛЮЧЕННЯ' : overview.data?.configured ? 'РЕЄСТРАТОР НАЛАШТОВАНО' : 'ПОТРІБНЕ НАЛАШТУВАННЯ'}</span></header>
     <section className="camera-grid"><article className="camera-card">
       <div className="camera-card-heading"><span className="camera-icon">◉</span><div><h2>{camera?.name ?? 'Оберіть камеру'}</h2><p>{camera ? `${camera.id} · живий перегляд` : 'Список камер праворуч'}</p></div></div>
-      <div className="camera-preview">{camera && !streamError ? <img key={`${camera.channel}-${streamVersion}`} src={`/api/cameras/${camera.channel}/live?v=${streamVersion}`} onError={() => {
-        setStreamError('Не вдалося отримати відео. Перевіряємо причину…');
-        const controller = new AbortController();
-        void fetch(`/api/cameras/${camera.channel}/live`, { signal: controller.signal }).then(async (response) => {
-          if (!response.ok) {
-            const body = await response.json() as { error?: string };
-            setStreamError(body.error ?? 'Не вдалося отримати відео.');
-          } else {
-            setStreamError('Потік перервався. Спробуйте перепідключитися.');
-          }
-        }).catch(() => setStreamError('Не вдалося зв’язатися із сервером.')).finally(() => controller.abort());
-      }} alt={`Відео: ${camera.name}`} /> : <div className="camera-preview-placeholder"><b>◉</b><span>{streamError ? 'Не вдалося отримати відео' : 'Камеру не вибрано'}</span><small>{streamError || 'Виберіть камеру зі списку.'}</small></div>}</div>
+      <div className="camera-preview">{camera && !streamError ? <img key={`${camera.channel}-${streamVersion}`} src={`/api/cameras/${camera.channel}/live?v=${streamVersion}`} onError={() => setStreamError('Не вдалося отримати відео. Перевірте камеру та спробуйте ще раз.')} alt={`Відео: ${camera.name}`} /> : <div className="camera-preview-placeholder"><b>◉</b><span>{streamError ? 'Не вдалося отримати відео' : 'Камеру не вибрано'}</span><small>{streamError || 'Виберіть камеру зі списку.'}</small></div>}</div>
       <footer><button className="camera-refresh" disabled={!camera} onClick={() => { setStreamError(''); setStreamVersion((v) => v + 1); }} type="button">Перепідключити</button><span>Живе відео · підпотік</span></footer>
     </article><aside className="camera-info"><h2>Камери ({cameras.length})</h2>
       {overview.isLoading && <p>Завантажуємо список…</p>}{overview.isError && <p>Не вдалося отримати список камер. Перевірте підключення до реєстратора.</p>}

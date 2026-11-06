@@ -175,7 +175,7 @@ export function ReportsPage() {
   const [exportError, setExportError] = useState('');
   const [quickPeriod, setQuickPeriod] = useState('');
   const personnelQuery = useQuery({ queryKey: ['personnel'], queryFn: getPersonnel, staleTime: 30_000, enabled: reportModalOpen || exportModalOpen });
-  const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: getPlanCatalog, staleTime: 60_000, enabled: reportModalOpen });
+  const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: () => getPlanCatalog(), staleTime: 60_000, enabled: reportModalOpen });
   const activeReport = reportCards.find((item) => item.kind === kind)!;
   const personnel = personnelQuery.data?.personnel ?? [];
   const departments = personnelQuery.data?.departments ?? [];

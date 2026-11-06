@@ -27,7 +27,7 @@ export function EventsPage() {
   const [filters, setFilters] = useState<EventFilters>(emptyFilters);
   const [offset, setOffset] = useState(0);
   const personnelQuery = useQuery({ queryKey: ['personnel'], queryFn: getPersonnel, staleTime: 30_000 });
-  const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: getPlanCatalog, staleTime: 60_000 });
+  const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: () => getPlanCatalog(), staleTime: 60_000 });
   const eventsQuery = useQuery({
     queryKey: ['events', hours, range, filters, eventMode, offset, catalogQuery.dataUpdatedAt],
     queryFn: () => getEvents({

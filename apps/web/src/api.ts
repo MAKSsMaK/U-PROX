@@ -139,8 +139,8 @@ export async function getHealth(): Promise<HealthResponse> {
   return response.json();
 }
 
-export async function getPlanCatalog(): Promise<PlanCatalog> {
-  const response = await fetch('/api/plan/catalog');
+export async function getPlanCatalog(refresh = false): Promise<PlanCatalog> {
+  const response = await fetch(refresh ? '/api/plan/catalog?refresh=1' : '/api/plan/catalog');
   if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
   return response.json();
 }

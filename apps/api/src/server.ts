@@ -52,6 +52,7 @@ const reportFontFile = resolve(moduleDirectory, '../assets/NotoSans-Regular.ttf'
 await app.register(rateLimit, { global: false });
 type Session = { sid: string; expiresAt: number };
 let session: Session | undefined;
+let authenticationPending: Promise<Session> | undefined;
 type EmployeeDirectory = { employees: unknown[]; expiresAt: number };
 let employeeDirectory: EmployeeDirectory | undefined;
 type CachedImage = { content: Buffer; contentType: string; expiresAt: number };
@@ -92,23 +93,26 @@ async function uproxx(path: string, body: unknown) {
   if (!env.UPROX_BASE_URL || !env.UPROX_USERNAME || !env.UPROX_PASSWORD)
     throw new Error('U-PROX credentials/base URL are not configured');
   if (!session || session.expiresAt < Date.now()) {
-    const r = await fetch(new URL('/json/Authenticate', env.UPROX_BASE_URL), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        UserName: env.UPROX_USERNAME,
-        PasswordHash: passwordHash(env.UPROX_PASSWORD),
-      }),
-    });
-    if (!r.ok) throw new Error(`U-PROX Authenticate failed: HTTP ${r.status}`);
-    const data = (await r.json()) as { UserSID?: string };
-    if (!data.UserSID) throw new Error('U-PROX Authenticate returned no UserSID');
-    session = { sid: data.UserSID, expiresAt: Date.now() + 20 * 60_000 };
+    if (!authenticationPending) {
+      authenticationPending = (async () => {
+        const r = await fetch(new URL('/json/Authenticate', env.UPROX_BASE_URL!), {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ UserName: env.UPROX_USERNAME, PasswordHash: passwordHash(env.UPROX_PASSWORD!) }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!r.ok) throw new Error(`U-PROX Authenticate failed: HTTP ${r.status}`);
+        const data = (await r.json()) as { UserSID?: string };
+        if (!data.UserSID) throw new Error('U-PROX Authenticate returned no UserSID');
+        return { sid: data.UserSID, expiresAt: Date.now() + 20 * 60_000 };
+      })().finally(() => { authenticationPending = undefined; });
+    }
+    session = await authenticationPending;
   }
   const r = await fetch(new URL(`/json/${path}`, env.UPROX_BASE_URL), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ ...(body as Record<string, unknown>), UserSID: session.sid }),
+    signal: AbortSignal.timeout(30_000),
   });
   if (!r.ok) throw new Error(`U-PROX ${path} failed: HTTP ${r.status}`);
   return r.json();
@@ -257,11 +261,20 @@ app.get('/api/cameras/:channel/diagnostics', async (request, reply) => {
   return { channel, substream, main };
 });
 
+let activeCameraStreams = 0;
+const maxCameraStreams = 4;
+
 app.get('/api/cameras/:channel/live', async (request, reply) => {
   const { channel } = z.object({ channel: z.coerce.number().int().min(1).max(999) }).parse(request.params);
   if (!cameraConfigured() || !cameraChannels.some((camera) => camera.channel === channel)) return reply.code(404).send({ error: 'Камеру не знайдено' });
+  if (activeCameraStreams >= maxCameraStreams) return reply.code(503).send({ error: 'Забагато одночасних відеопотоків. Закрийте зайві перегляди та спробуйте ще раз.' });
   const startStream = async (stream: number) => {
+    activeCameraStreams += 1;
     const child = spawn(env.HIKVISION_FFMPEG_PATH, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-rtsp_transport', 'tcp', '-i', cameraRtspUrl(channel, stream), '-an', '-vf', 'fps=5,scale=960:-2', '-q:v', '5', '-f', 'mpjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let released = false;
+    const release = () => { if (!released) { released = true; activeCameraStreams -= 1; } };
+    child.once('close', release);
+    child.once('error', release);
     let stderr = '';
     child.stderr.on('data', (chunk: Buffer) => { stderr = (stderr + chunk.toString()).slice(-4000); });
     const result = await new Promise<{ chunk?: Buffer; error?: string; missing?: boolean }>((resolve) => {
@@ -278,13 +291,15 @@ app.get('/api/cameras/:channel/live', async (request, reply) => {
   let attempt = await startStream(2);
   if (attempt.missing && !reply.raw.destroyed) attempt = await startStream(1);
   const { child, chunk } = attempt;
-  if (!chunk) { child.kill(); return reply.code(502).send({ error: attempt.error }); }
+  if (!chunk) { child.kill(); if (reply.raw.destroyed) return; return reply.code(502).send({ error: attempt.error }); }
+  if (reply.raw.destroyed) { child.kill(); return; }
+  reply.raw.once('close', () => { child.kill(); });
+  if (reply.raw.destroyed) { child.kill(); return; }
   reply.hijack();
   reply.raw.writeHead(200, { 'Content-Type': 'multipart/x-mixed-replace; boundary=ffmpeg', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
   reply.raw.write(chunk);
   child.stdout.pipe(reply.raw);
   child.stdout.resume();
-  reply.raw.on('close', () => { child.kill(); });
   child.once('close', () => { if (!reply.raw.destroyed) reply.raw.end(); });
 });
 
@@ -531,7 +546,7 @@ function catalogItem(record: UproxxCatalogRecord): PlanCatalogItem {
   };
 }
 
-async function loadPlanCatalog() {
+async function fetchPlanCatalog() {
   const listBody = { Language: 'uk', Limit: 2_000, StartToken: 0 };
   const [doorResult, deviceResult, inputResult] = await Promise.allSettled([
     uproxx('DoorGetList', listBody),
@@ -568,7 +583,22 @@ async function loadPlanCatalog() {
   };
 }
 
-app.get('/api/plan/catalog', loadPlanCatalog);
+let planCatalogCache: { value: Awaited<ReturnType<typeof fetchPlanCatalog>>; expiresAt: number } | undefined;
+let planCatalogPending: Promise<Awaited<ReturnType<typeof fetchPlanCatalog>>> | undefined;
+async function loadPlanCatalog(force = false) {
+  if (!force && planCatalogCache && planCatalogCache.expiresAt > Date.now()) return planCatalogCache.value;
+  if (!planCatalogPending) {
+    planCatalogPending = fetchPlanCatalog().then((value) => {
+      if (!value.warnings.length) planCatalogCache = { value, expiresAt: Date.now() + 30_000 };
+      return value;
+    }).finally(() => { planCatalogPending = undefined; });
+  }
+  return planCatalogPending;
+}
+app.get('/api/plan/catalog', async (request) => {
+  const { refresh } = z.object({ refresh: z.string().optional() }).parse(request.query);
+  return loadPlanCatalog(refresh === '1');
+});
 
 const liveControllerParams = z.object({ token: z.coerce.number().int().positive() });
 
@@ -991,7 +1021,7 @@ async function getEventsRange(from: number, to: number, limit: number) {
     range.pending = undefined;
     if (eventRangeCache.size > 12) {
       for (const [cacheKey, value] of eventRangeCache) {
-        if (value.expiresAt <= Date.now()) eventRangeCache.delete(cacheKey);
+        if (!value.pending && value.expiresAt <= Date.now()) eventRangeCache.delete(cacheKey);
       }
     }
     return range;
@@ -1154,7 +1184,7 @@ async function renderPdfReport(document: PDFKit.PDFDocument, input: z.infer<type
 app.get('/api/events', async (request) => {
   const input = eventsQuery.parse(request.query);
   const { limit, offset, hours, from: requestedFrom, to: requestedTo } = input;
-  const to = requestedTo ?? Date.now();
+  const to = requestedTo ?? Math.floor(Date.now() / LIVE_CACHE_MS) * LIVE_CACHE_MS;
   const from = requestedFrom ?? to - hours * 60 * 60_000;
   // The live journal remains light: a large scan is only needed for an
   // explicit field filter or when the user asks for older pages.

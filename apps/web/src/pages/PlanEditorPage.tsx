@@ -33,7 +33,7 @@ const selectorTypes: Array<{ type: CatalogType; label: string }> = [
 ];
 
 export function PlanEditorPage() {
-  const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: getPlanCatalog });
+  const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: () => getPlanCatalog() });
   const queryClient = useQueryClient();
   const floor = useStore((state) => state.floor);
   const setFloor = useStore((state) => state.setFloor);
@@ -261,7 +261,7 @@ export function PlanEditorPage() {
             <button className={`editor-save ${isDirty ? 'is-dirty' : ''}`} disabled={!isDirty} onClick={() => void saveElements()} type="button">
               {isDirty ? 'Зберегти зміни' : 'Збережено'}
             </button>
-            <button className="catalog-refresh" onClick={async () => { await catalogQuery.refetch(); await queryClient.invalidateQueries({ queryKey: ['plan-elements'] }); }} type="button">Оновити з U‑PROX</button>
+            <button className="catalog-refresh" onClick={async () => { const updated = await getPlanCatalog(true); queryClient.setQueryData(['plan-catalog'], updated); await queryClient.invalidateQueries({ queryKey: ['plan-elements'] }); }} type="button">Оновити з U‑PROX</button>
           </div>
         </header>
         {catalogQuery.isError ? (
