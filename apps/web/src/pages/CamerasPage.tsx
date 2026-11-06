@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getCameras } from '../api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
@@ -7,6 +7,22 @@ export function CamerasPage() {
   const [selected, setSelected] = useState<string>();
   const [streamError, setStreamError] = useState('');
   const [streamVersion, setStreamVersion] = useState(0);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState('');
+  const previewRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const update = () => setFullscreen(document.fullscreenElement === previewRef.current);
+    document.addEventListener('fullscreenchange', update);
+    return () => document.removeEventListener('fullscreenchange', update);
+  }, []);
+  const toggleFullscreen = async () => {
+    try {
+      setFullscreenError('');
+      if (document.fullscreenElement === previewRef.current) await document.exitFullscreen();
+      else if (previewRef.current?.requestFullscreen) await previewRef.current.requestFullscreen();
+      else setFullscreenError('Браузер не підтримує повноекранний режим.');
+    } catch { setFullscreenError('Не вдалося відкрити повноекранний режим.'); }
+  };
   const overview = useQuery({ queryKey: ['cameras'], queryFn: getCameras, staleTime: 60_000 });
   const cameras = overview.data?.cameras ?? [];
   const camera = cameras.find((item) => `${item.recorder}/${item.channel}` === selected);
@@ -22,7 +38,10 @@ export function CamerasPage() {
       <span className={`camera-status ${overview.data?.configured ? 'ready' : ''}`}><i />{overview.isError ? 'ПОМИЛКА ПІДКЛЮЧЕННЯ' : overview.data?.configured ? 'РЕЄСТРАТОР НАЛАШТОВАНО' : 'ПОТРІБНЕ НАЛАШТУВАННЯ'}</span></header>
     <section className="camera-grid"><article className="camera-card">
       <div className="camera-card-heading"><span className="camera-icon">◉</span><div><h2>{camera?.name ?? 'Оберіть камеру'}</h2><p>{camera ? `${camera.recorder} · ${camera.id} · живий перегляд` : 'Список камер праворуч'}</p></div></div>
-      <div className="camera-preview">{camera && !streamError ? <img ref={streamRef} onError={() => { setStreamError('Не вдалося отримати відео. Перевірте камеру та права доступу.'); void overview.refetch(); }} alt={`Відео: ${camera.name}`} /> : <div className="camera-preview-placeholder"><b>◉</b><span>{streamError ? 'Не вдалося отримати відео' : 'Камеру не вибрано'}</span><small>{streamError || 'Виберіть камеру зі списку.'}</small></div>}</div>
+      <div className="camera-preview" ref={previewRef}>{camera && !streamError ? <img ref={streamRef} onError={() => { setStreamError('Не вдалося отримати відео. Перевірте камеру та права доступу.'); void overview.refetch(); }} alt={`Відео: ${camera.name}`} /> : <div className="camera-preview-placeholder"><b>◉</b><span>{streamError ? 'Не вдалося отримати відео' : 'Камеру не вибрано'}</span><small>{streamError || 'Виберіть камеру зі списку.'}</small></div>}
+        {camera && !streamError && <button className="camera-fullscreen" onClick={() => void toggleFullscreen()} type="button" aria-label={fullscreen ? 'Вийти з повного екрана' : 'Відкрити на повний екран'}>{fullscreen ? '⤡ Згорнути' : '⛶ На весь екран'}</button>}
+      </div>
+      {fullscreenError && <p className="camera-error">{fullscreenError}</p>}
       <footer><button className="camera-refresh" disabled={!camera} onClick={() => { setStreamError(''); setStreamVersion((v) => v + 1); }} type="button">Перепідключити</button><button className="camera-refresh" disabled={!camera} onClick={() => { setSelected(undefined); setStreamError(''); }} type="button">Зупинити</button><span>Живе відео · підпотік</span></footer>
     </article><aside className="camera-info"><div className="camera-info-header"><h2>Камери ({cameras.filter((item) => (item.online !== false && !item.denied)).length})</h2>
       {overview.isLoading && <p>Завантажуємо список…</p>}{overview.isError && <p>Не вдалося отримати список камер. Перевірте підключення до реєстратора.</p>}

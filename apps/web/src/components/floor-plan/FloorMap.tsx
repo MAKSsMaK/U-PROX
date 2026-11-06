@@ -164,7 +164,7 @@ export function FloorMap() {
   const endPan = () => {
     dragStart.current = undefined;
   };
-  const allTypesVisible = Object.values(visibleTypes).every(Boolean);
+  const allTypesVisible = visibleTypes.door && visibleTypes.camera;
   const toggleType = (type: keyof typeof visibleTypes) =>
     setVisibleTypes((types) => ({ ...types, [type]: !types[type] }));
 
@@ -177,11 +177,9 @@ export function FloorMap() {
         </div>
         <div className="plan-display-filters" aria-label="Фільтри відображення">
           <span>Показати</span>
-          <button className={allTypesVisible ? 'active' : ''} onClick={() => setVisibleTypes(allTypesVisible ? { door: false, device: false, input: false, camera: false } : { door: true, device: true, input: true, camera: true })} type="button">Усі</button>
+          <button className={allTypesVisible ? 'active' : ''} onClick={() => setVisibleTypes((types) => ({ ...types, door: !allTypesVisible, camera: !allTypesVisible }))} type="button">Усі</button>
           <button aria-pressed={visibleTypes.door} className={visibleTypes.door ? 'active' : ''} onClick={() => toggleType('door')} type="button">Двері</button>
-          <button aria-pressed={visibleTypes.device} className={visibleTypes.device ? 'active' : ''} onClick={() => toggleType('device')} type="button">Контролери</button>
           <button aria-pressed={visibleTypes.camera} className={visibleTypes.camera ? 'active' : ''} onClick={() => toggleType('camera')} type="button">Камери</button>
-          <button aria-pressed={visibleTypes.input} className={visibleTypes.input ? 'active' : ''} onClick={() => toggleType('input')} type="button">Датчики</button>
           <i />
           <button aria-pressed={showNames} className={showNames ? 'active' : ''} onClick={() => setShowNames((value) => !value)} type="button">Назви</button>
           <button aria-pressed={showTextLabels} className={showTextLabels ? 'active' : ''} onClick={() => setShowTextLabels((value) => !value)} type="button">Написи</button>
