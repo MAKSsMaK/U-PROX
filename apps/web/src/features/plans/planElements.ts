@@ -1,9 +1,11 @@
-export type PlanElementType = 'door' | 'device' | 'input' | 'label';
+export type PlanElementType = 'door' | 'device' | 'input' | 'label' | 'camera';
 
 export type PlanElement = {
   id: string;
   type: PlanElementType;
   token?: string;
+  recorder?: string;
+  cameraChannel?: number;
   name: string;
   detail?: string | null;
   deviceToken?: string | null;
@@ -41,5 +43,6 @@ export function planElementIcon(type: PlanElementType) {
   if (type === 'door') return '▯';
   if (type === 'device') return '▣';
   if (type === 'input') return '◉';
+  if (type === 'camera') return '▣';
   return 'T';
 }

@@ -2099,3 +2099,6 @@ pre {
   .editor-map-viewport { padding: 10px; }
   .editor-header-actions { width: 100%; justify-content: space-between; }
 }
+
+.plan-camera-view img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: contain; background: #02060b; border-radius: 6px; }
+.plan-camera-view .plan-details-action { margin-top: 12px; }

@@ -360,7 +360,9 @@ app.get('/api/cameras/test-preview.jpg', async (_request, reply) => {
 
 const planElementSchema = z.object({
   id: z.string().min(1).max(128),
-  type: z.enum(['door', 'device', 'input', 'label']),
+  type: z.enum(['door', 'device', 'input', 'label', 'camera']),
+  recorder: z.string().max(253).optional(),
+  cameraChannel: z.number().int().min(1).max(999).optional(),
   token: z.string().max(128).optional(),
   name: z.string().min(1).max(300),
   detail: z.string().max(300).nullable().optional(),

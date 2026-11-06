@@ -4,7 +4,9 @@ export type Door = [string, 'green' | 'red' | 'yellow' | 'blue', number, number]
 export type PlanSelection = {
   id: string;
   name: string;
-  type: 'door' | 'device' | 'input';
+  type: 'door' | 'device' | 'input' | 'camera';
+  recorder?: string;
+  cameraChannel?: number;
   token?: string;
   eventTokens?: string[];
   detail?: string | null;

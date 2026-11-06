@@ -67,6 +67,8 @@ export type HealthResponse = { ok: boolean; mode: 'mock' | 'uproxx' };
 
 export type PlanCatalogItem = {
   token: string;
+  recorder?: string;
+  cameraChannel?: number;
   name: string;
   model: string | null;
   online: boolean | null;

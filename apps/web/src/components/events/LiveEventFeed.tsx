@@ -1,20 +1,42 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getEvents, getPlanElements, getPlanLiveController } from '../../api';
+import { getCameras, getEvents, getPlanElements, getPlanLiveController } from '../../api';
 import { eventMatchesObject, getEventSeverity, toEventTableRows } from '../../features/events/eventTable';
 import { useStore } from '../../store';
 
-function objectType(type?: 'door' | 'device' | 'input') {
+function objectType(type?: 'door' | 'device' | 'input' | 'camera') {
+  if (type === 'camera') return 'Камера';
   if (type === 'device') return 'Контролер';
   if (type === 'input') return 'Датчик / вхід';
   return 'Двері / точка доступу';
 }
 
-function objectIcon(type?: 'door' | 'device' | 'input') {
+function objectIcon(type?: 'door' | 'device' | 'input' | 'camera') {
+  if (type === 'camera') return '▣';
   if (type === 'device') return '▣';
   if (type === 'input') return '◉';
   return '▯';
+}
+
+function CameraPlanPreview({ recorder, channel, name }: { recorder: string; channel: number; name: string }) {
+  const [playing, setPlaying] = useState(true);
+  const [error, setError] = useState(false);
+  const [version, setVersion] = useState(0);
+  const ref = useRef<HTMLImageElement>(null);
+  const cameras = useQuery({ queryKey: ['cameras'], queryFn: getCameras, staleTime: 60_000 });
+  const camera = cameras.data?.cameras.find((item) => item.recorder === recorder && item.channel === channel);
+  useLayoutEffect(() => {
+    const image = ref.current;
+    if (!image || !playing || !camera) return;
+    image.src = `/api/cameras/${channel}/live?recorder=${encodeURIComponent(recorder)}&v=${version}`;
+    return () => { image.removeAttribute('src'); };
+  }, [recorder, channel, version, playing, Boolean(camera)]);
+  return <div className="plan-camera-view">
+    <p>{recorder} · D{channel}</p>
+    {cameras.isLoading ? <p>Завантаження камери…</p> : !camera ? <p>Камеру не знайдено або реєстратор недоступний.</p> : playing && !error ? <img ref={ref} alt={`Відео: ${name}`} onError={() => { setError(true); setPlaying(false); }} /> : <p>{error ? 'Не вдалося отримати відео.' : 'Відео зупинено.'}</p>}
+    {camera && <button className="plan-details-action" type="button" onClick={() => { if (playing) setPlaying(false); else { setError(false); setVersion((value) => value + 1); setPlaying(true); } }}>{playing ? 'Зупинити відео' : 'Увімкнути відео'}</button>}
+  </div>;
 }
 
 type LiveEventFeedProps = {
@@ -33,7 +55,7 @@ export function LiveEventFeed({ collapsed, onShowObject, onToggle, view }: LiveE
   const eventsQuery = useQuery({
     queryKey: ['plan-events', 24, selected ? tokens : null],
     queryFn: () => getEvents({ hours: 24, limit: 200, senderTokens: tokens }),
-    enabled: !selected || tokens.length > 0,
+    enabled: selected?.type !== 'camera' && (!selected || tokens.length > 0),
     refetchInterval: 30_000,
   });
   const controllerToken = selected?.type === 'device'
@@ -92,6 +114,7 @@ export function LiveEventFeed({ collapsed, onShowObject, onToggle, view }: LiveE
             <div className="map-legend-row"><i className="map-legend-symbol door">▯</i><span><b>Двері / точка доступу</b><small>Зелений маркер</small></span></div>
             <div className="map-legend-row"><i className="map-legend-symbol controller">▣</i><span><b>Контролер</b><small>Синій маркер</small></span></div>
             <div className="map-legend-row"><i className="map-legend-symbol sensor">◉</i><span><b>Датчик / вхід</b><small>Жовтий маркер</small></span></div>
+            <div className="map-legend-row"><i className="map-legend-symbol controller">▣</i><span><b>Камера</b><small>Синій маркер</small></span></div>
             <div className="map-legend-row"><i className="map-legend-symbol label">T</i><span><b>Напис</b><small>Текстова позначка</small></span></div>
           </section>
           <section>
@@ -111,6 +134,13 @@ export function LiveEventFeed({ collapsed, onShowObject, onToggle, view }: LiveE
         </div>
       </section>
     );
+  }
+
+  if (selected?.type === 'camera') {
+    return <section className="feed"><div className="feed-title"><b>Камера на плані</b><span className="feed-title-actions"><button aria-label="Згорнути панель" onClick={onToggle} type="button">›</button></span></div>
+      <div className="plan-details"><div className="object-icon blue">▣</div><h2>{selected.name}</h2><p>{selected.floor}</p>
+        {selected.recorder && selected.cameraChannel ? <CameraPlanPreview key={`${selected.recorder}/${selected.cameraChannel}`} recorder={selected.recorder} channel={selected.cameraChannel} name={selected.name} /> : <p>Камера не має прив’язки до реєстратора.</p>}
+      </div></section>;
   }
 
   return (

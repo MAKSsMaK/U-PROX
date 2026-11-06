@@ -11,6 +11,7 @@ function getStatuses(elements: PlanElement[]): Status[] {
     { icon: '▯', count: count('door'), label: 'Двері на плані' },
     { icon: '▣', count: count('device'), label: 'Контролери на плані' },
     { icon: '◉', count: count('input'), label: 'Датчики / входи' },
+    { icon: '▣', count: count('camera'), label: 'Камери на плані' },
     { icon: 'T', count: count('label'), label: 'Написи' },
   ];
 }

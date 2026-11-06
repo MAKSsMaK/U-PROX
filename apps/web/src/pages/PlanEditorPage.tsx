@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { getPlanCatalog, getPlanElements, savePlanElements, type PlanCatalogItem } from '../api';
+import { getCameras, getPlanCatalog, getPlanElements, savePlanElements, type PlanCatalogItem } from '../api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 import { useStore } from '../store';
 import { floorOptions, getFloorPlan } from '../features/plans/floorPlans';
@@ -30,11 +30,13 @@ function createPlanElementId() {
 
 const selectorTypes: Array<{ type: CatalogType; label: string }> = [
   { type: 'door', label: 'Двері та турнікети' },
+  { type: 'camera', label: 'Камери' },
 ];
 
 export function PlanEditorPage() {
   const catalogQuery = useQuery({ queryKey: ['plan-catalog'], queryFn: () => getPlanCatalog() });
   const queryClient = useQueryClient();
+  const camerasQuery = useQuery({ queryKey: ['cameras'], queryFn: getCameras, staleTime: 60_000 });
   const floor = useStore((state) => state.floor);
   const setFloor = useStore((state) => state.setFloor);
   const plan = getFloorPlan(floor);
@@ -62,7 +64,8 @@ export function PlanEditorPage() {
   const catalog = catalogQuery.data;
   const catalogItems = useMemo(() => [
     ...(catalog?.doors ?? []).map((item) => ({ type: 'door' as const, item, group: 'Двері' })),
-  ], [catalog]);
+    ...(camerasQuery.data?.cameras ?? []).filter((camera) => camera.online !== false && !camera.denied).map((camera) => ({ type: 'camera' as const, group: 'Камери', item: { token: `${camera.recorder}/${camera.channel}`, name: camera.name, recorder: camera.recorder, cameraChannel: camera.channel, model: `${camera.recorder} · ${camera.id}`, online: camera.online, deviceToken: null, inputNumber: null } })),
+  ], [catalog, camerasQuery.data]);
   const foundItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('uk-UA');
     if (!query) return [];
@@ -167,6 +170,8 @@ export function PlanEditorPage() {
       name: selection.item.name,
       detail: selection.type === 'input' ? selection.item.deviceToken : selection.item.model ?? selection.item.deviceToken,
       deviceToken: selection.item.deviceToken,
+      recorder: selection.item.recorder,
+      cameraChannel: selection.item.cameraChannel,
       eventTokens: selection.item.eventTokens ?? [],
       x,
       y,
@@ -375,7 +380,7 @@ export function PlanEditorPage() {
               </section>
               <aside className="editor-bindings" aria-label="Прив’язані елементи">
                 <div className="editor-bindings-heading"><div><b>Прив’язки</b><span>{elements.length} на плані</span></div></div>
-                {selectedElement && selectedElement.type !== 'label' && (
+                {selectedElement && selectedElement.type !== 'label' && selectedElement.type !== 'camera' && (
                   <section className="editor-event-token-editor">
                     <header>
                       <b>Події для «{selectedElement.name}»</b>

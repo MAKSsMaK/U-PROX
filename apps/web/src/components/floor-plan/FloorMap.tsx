@@ -68,7 +68,7 @@ export function FloorMap() {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [imageUnavailable, setImageUnavailable] = useState(false);
-  const [visibleTypes, setVisibleTypes] = useState({ door: true, device: true, input: true });
+  const [visibleTypes, setVisibleTypes] = useState({ door: true, device: true, input: true, camera: true });
   const [showNames, setShowNames] = useState(false);
   const [showTextLabels, setShowTextLabels] = useState(true);
   const [pulseUntil, setPulseUntil] = useState<Record<string, number>>({});
@@ -177,9 +177,10 @@ export function FloorMap() {
         </div>
         <div className="plan-display-filters" aria-label="Фільтри відображення">
           <span>Показати</span>
-          <button className={allTypesVisible ? 'active' : ''} onClick={() => setVisibleTypes(allTypesVisible ? { door: false, device: false, input: false } : { door: true, device: true, input: true })} type="button">Усі</button>
+          <button className={allTypesVisible ? 'active' : ''} onClick={() => setVisibleTypes(allTypesVisible ? { door: false, device: false, input: false, camera: false } : { door: true, device: true, input: true, camera: true })} type="button">Усі</button>
           <button aria-pressed={visibleTypes.door} className={visibleTypes.door ? 'active' : ''} onClick={() => toggleType('door')} type="button">Двері</button>
           <button aria-pressed={visibleTypes.device} className={visibleTypes.device ? 'active' : ''} onClick={() => toggleType('device')} type="button">Контролери</button>
+          <button aria-pressed={visibleTypes.camera} className={visibleTypes.camera ? 'active' : ''} onClick={() => toggleType('camera')} type="button">Камери</button>
           <button aria-pressed={visibleTypes.input} className={visibleTypes.input ? 'active' : ''} onClick={() => toggleType('input')} type="button">Датчики</button>
           <i />
           <button aria-pressed={showNames} className={showNames ? 'active' : ''} onClick={() => setShowNames((value) => !value)} type="button">Назви</button>
@@ -223,9 +224,9 @@ export function FloorMap() {
               ) : (
                 <button
                   aria-label={element.name}
-                  className={`marker ${element.type === 'device' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${showNames ? 'show-name' : ''} ${lastState ? `event-${lastState}` : ''} ${hasFreshEvent ? 'is-recent' : ''} ${selected?.id === element.id ? 'selected' : ''}`}
+                  className={`marker ${element.type === 'device' || element.type === 'camera' ? 'blue' : element.type === 'input' ? 'yellow' : 'green'} ${showNames ? 'show-name' : ''} ${lastState ? `event-${lastState}` : ''} ${hasFreshEvent ? 'is-recent' : ''} ${selected?.id === element.id ? 'selected' : ''}`}
                   key={element.id}
-                  onClick={() => select({ id: element.id, name: element.name, type: element.type as 'door' | 'device' | 'input', token: element.token, eventTokens: element.eventTokens, detail: element.detail, deviceToken: element.deviceToken, lastEvent: lastEvent ? { name: lastEvent.eventName, occurredAt: lastEvent.occurredAt } : undefined, floor })}
+                  onClick={() => select({ id: element.id, name: element.name, type: element.type as 'door' | 'device' | 'input' | 'camera', recorder: element.recorder, cameraChannel: element.cameraChannel, token: element.token, eventTokens: element.eventTokens, detail: element.detail, deviceToken: element.deviceToken, lastEvent: lastEvent ? { name: lastEvent.eventName, occurredAt: lastEvent.occurredAt } : undefined, floor })}
                   style={{ left: `${element.x}%`, top: `${element.y}%` }}
                   title={lastEvent ? `${element.name} · ${lastEvent.eventName} · ${lastEvent.occurredAt}` : `${element.name}${element.token ? ` · токен ${element.token}` : ''}`}
                   type="button"
