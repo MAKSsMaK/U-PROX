@@ -50,9 +50,10 @@ function CameraPlanPreview({ recorder, channel, name }: { recorder: string; chan
   }, [recorder, channel, version, playing, Boolean(camera)]);
   return <div className="plan-camera-view">
     <p>{recorder} · D{channel}</p>
-    {cameras.isLoading ? <p>Завантаження камери…</p> : !camera ? <p>Камеру не знайдено або реєстратор недоступний.</p> : playing && !error ? <div className="plan-camera-preview" ref={previewRef}><img ref={ref} alt={`Відео: ${name}`} onError={() => { setError(true); setPlaying(false); }} /><button className="camera-fullscreen" onClick={() => void toggleFullscreen()} type="button" aria-label={fullscreen ? 'Вийти з повного екрана' : 'Відкрити на повний екран'}>{fullscreen ? '⤡ Згорнути' : '⛶ На весь екран'}</button></div> : <p>{error ? 'Не вдалося отримати відео.' : 'Відео зупинено.'}</p>}
+    {cameras.isLoading ? <p>Завантаження камери…</p> : !camera ? <p>Камеру не знайдено або реєстратор недоступний.</p> : playing && !error ? <div className="plan-camera-preview" ref={previewRef}><img ref={ref} alt={`Відео: ${name}`} onError={() => { setError(true); setPlaying(false); }} />{fullscreen && <button className="camera-fullscreen" onClick={() => void toggleFullscreen()} type="button" aria-label="Вийти з повного екрана">⤡ Згорнути</button>}</div> : <p>{error ? 'Не вдалося отримати відео.' : 'Відео зупинено.'}</p>}
     {fullscreenError && <p role="alert">{fullscreenError}</p>}
     {camera && <button className="plan-details-action" type="button" onClick={() => { if (playing) setPlaying(false); else { setError(false); setVersion((value) => value + 1); setPlaying(true); } }}>{playing ? 'Зупинити відео' : 'Увімкнути відео'}</button>}
+    {camera && playing && !error && <button className="plan-details-action" type="button" onClick={() => void toggleFullscreen()}>⛶ На весь екран</button>}
   </div>;
 }
 
