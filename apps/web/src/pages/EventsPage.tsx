@@ -50,6 +50,8 @@ export function EventsPage() {
   const departments = personnelQuery.data?.departments ?? [];
   const accessPoints = useMemo(() => [...(catalogQuery.data?.doors ?? [])]
     .sort((left, right) => left.name.localeCompare(right.name, 'uk-UA')), [catalogQuery.data]);
+  const liveInterval = offset === 0 && hours === 24 && !filters.search && !filters.department && !filters.accessPoint ? 5 : 60;
+  const updatedAt = eventsQuery.data?.refreshedAt ? new Intl.DateTimeFormat('uk-UA', { timeStyle: 'medium' }).format(new Date(eventsQuery.data.refreshedAt)) : undefined;
   const periodLabel = hours === 24 ? 'останні 24 години' : hours === 72 ? 'останні 3 дні' : hours === 168 ? 'останні 7 днів' : 'власний діапазон';
   const choosePeriod = (value: number) => {
     setHours(value);
@@ -67,11 +69,11 @@ export function EventsPage() {
           <div>
             <p className="eyebrow">U‑PROX · ЖИВІ ДАНІ</p>
             <h1>Події</h1>
-            <span>Події за {periodLabel} · {hours === 24 ? 'оновлюється кожні 5 секунд' : 'оновлюється щохвилини'}</span>
+            <span>Події за {periodLabel} · оновлення кожні {liveInterval} с{updatedAt ? ` · отримано о ${updatedAt}` : ''}</span>
           </div>
           <div className="events-status">
             <i className={eventsQuery.isError ? 'is-error' : ''} />
-            {eventsQuery.isError ? 'Помилка отримання' : 'LIVE'}
+            {eventsQuery.isError ? 'Помилка отримання' : eventsQuery.isFetching ? 'ОНОВЛЕННЯ' : eventsQuery.data ? 'LIVE' : 'ЗАВАНТАЖЕННЯ'}
           </div>
         </header>
         <section className="events-panel">

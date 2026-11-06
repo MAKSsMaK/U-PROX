@@ -821,7 +821,7 @@ function nextEventToken(response: EventsSnapshot) {
  * journal is written to our disk; the brief cache below only coalesces equal
  * requests from open screens during a few seconds.
  */
-async function fetchEventsFromUproxx(from: number, to: number, limit: number) {
+async function fetchEventsFromUproxx(from: number, to: number, limit: number, predicate?: (event: EventRecord) => boolean) {
   let startToken = '0';
   const seenTokens = new Set<string>();
   const collected = new Map<string, EventRecord>();
@@ -834,7 +834,10 @@ async function fetchEventsFromUproxx(from: number, to: number, limit: number) {
     })) as Record<string, unknown> & { Event?: EventRecord[]; NextToken?: string | number };
     const events = await enrichEvents(response.Event ?? []);
     if (!events.length) break;
-    events.forEach((event) => collected.set(eventKey(event), event));
+    events.forEach((event) => {
+      const issued = issuedMilliseconds(event.Issued);
+      if (issued >= from && issued <= to && (!predicate || predicate(event))) collected.set(eventKey(event), event);
+    });
     pages += 1;
     const oldest = Math.min(...events.map((event) => issuedMilliseconds(event.Issued)).filter(Boolean));
     const nextToken = nextEventToken(response as EventsSnapshot);
@@ -1004,8 +1007,8 @@ function yieldReportWork() {
   return new Promise<void>((resolve) => setImmediate(resolve));
 }
 
-async function getEventsRange(from: number, to: number, limit: number) {
-  const key = `${from}:${to}:${limit}`;
+async function getEventsRange(from: number, to: number, limit: number, predicate?: (event: EventRecord) => boolean, filterKey = '') {
+  const key = JSON.stringify([from, to, limit, filterKey]);
   const existing = eventRangeCache.get(key);
   if (existing?.expiresAt && existing.expiresAt > Date.now()) return existing;
   if (existing?.pending) {
@@ -1013,7 +1016,7 @@ async function getEventsRange(from: number, to: number, limit: number) {
     return { events, refreshedAt: existing.refreshedAt, expiresAt: existing.expiresAt };
   }
   const range: EventRange = { events: existing?.events ?? [], refreshedAt: existing?.refreshedAt ?? 0, expiresAt: 0 };
-  range.pending = fetchEventsFromUproxx(from, to, limit);
+  range.pending = fetchEventsFromUproxx(from, to, limit, predicate);
   eventRangeCache.set(key, range);
   try {
     const events = await range.pending;
@@ -1197,20 +1200,20 @@ async function renderPdfReport(document: PDFKit.PDFDocument, input: z.infer<type
 app.get('/api/events', async (request) => {
   const input = eventsQuery.parse(request.query);
   const { limit, offset, hours, from: requestedFrom, to: requestedTo } = input;
-  const to = requestedTo ?? Math.floor(Date.now() / LIVE_CACHE_MS) * LIVE_CACHE_MS;
+  const to = requestedTo ?? (Math.floor(Date.now() / LIVE_CACHE_MS) + 1) * LIVE_CACHE_MS;
   const from = requestedFrom ?? to - hours * 60 * 60_000;
-  // The live journal remains light: a large scan is only needed for an
-  // explicit field filter or when the user asks for older pages.
-  const hasDeepLookup = Boolean(input.search || input.department || input.accessPoint || input.senderTokens || offset > 0);
-  const range = await getEventsRange(from, to, hasDeepLookup ? UPROX_REPORT_MAX_EVENTS : limit);
   const senderTokens = new Set(input.senderTokens.split(',').filter(Boolean));
-  const events = range.events.filter((event) => matchesEventFilter(event, input) && (!senderTokens.size || senderTokens.has(String((event.Sender as { Token?: string | number } | undefined)?.Token ?? ''))));
-  const page = events.slice(offset, offset + limit);
+  const predicate = (event: EventRecord) => matchesEventFilter(event, input)
+    && (!senderTokens.size || senderTokens.has(String((event.Sender as { Token?: string | number } | undefined)?.Token ?? '')));
+  const needed = Math.min(UPROX_REPORT_MAX_EVENTS, offset + limit + 1);
+  const filterKey = JSON.stringify([input.search, input.department, input.accessPoint, input.senderTokens, input.eventMode]);
+  const range = await getEventsRange(from, to, needed, predicate, filterKey);
+  const page = range.events.slice(offset, offset + limit);
   return {
     Event: page,
     refreshedAt: range.refreshedAt,
     offset,
-    hasMore: hasDeepLookup ? offset + limit < events.length : range.events.length >= limit,
+    hasMore: offset + limit < range.events.length,
     nextOffset: offset + page.length,
   };
 });
