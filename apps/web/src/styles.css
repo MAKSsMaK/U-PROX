@@ -1537,7 +1537,7 @@ pre {
 }
 .editor-map-element:active { cursor: grabbing; }
 .editor-map-element.is-selected { outline: 2px solid #e4f7ff; outline-offset: 3px; }
-.editor-map-element.device { color: #4da9ff; }
+.editor-map-element.device, .editor-map-element.camera { color: #4da9ff; }
 .editor-map-element.input { color: #f7c354; }
 .editor-map-element.label {
   width: auto;
@@ -1641,7 +1641,7 @@ pre {
 .editor-bindings li.is-selected .editor-binding-select,
 .editor-binding-select:hover { background: #0c293d; }
 .editor-binding-select i { display: grid; width: 21px; height: 21px; place-items: center; border: 1px solid currentColor; border-radius: 50%; color: #50d993; font-size: 11px; font-style: normal; }
-.editor-binding-select i.device { color: #4da9ff; }
+.editor-binding-select i.device, .editor-binding-select i.camera { color: #4da9ff; }
 .editor-binding-select i.input { color: #f7c354; }
 .editor-binding-select i.label { color: #d9f1ff; border-radius: 3px; }
 .editor-binding-select b, .editor-binding-select small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1816,7 +1816,7 @@ pre {
 }
 .editor-search-results button:hover { background: #15324c; }
 .editor-search-results i { display: grid; width: 20px; height: 20px; place-items: center; border: 1px solid currentColor; border-radius: 50%; color: #54dc9b; font-style: normal; }
-.editor-search-results i.device { color: #52a9ff; }
+.editor-search-results i.device, .editor-search-results i.camera { color: #52a9ff; }
 .editor-search-results i.input { color: #f7c354; }
 .editor-search-results b, .editor-search-results small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editor-search-results b { font-size: 11px; }
@@ -2102,3 +2102,28 @@ pre {
 
 .plan-camera-view img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: contain; background: #02060b; border-radius: 6px; }
 .plan-camera-view .plan-details-action { margin-top: 12px; }
+
+/* Keep the player and camera list within the available window height. */
+.camera-grid { grid-template-columns: minmax(0, 1fr) 280px; align-items: stretch; height: min(720px, max(400px, calc(100vh - 230px))); }
+.camera-card { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.camera-preview { flex: 1; min-height: 0; aspect-ratio: auto; overflow: hidden; }
+.camera-preview img { min-height: 0; }
+.camera-card footer { flex-wrap: wrap; justify-content: flex-start; }
+.camera-card footer span { margin-left: auto; }
+.camera-info { min-height: 0; display: flex; flex-direction: column; padding: 0; }
+.camera-info-header { flex: 0 0 auto; padding: 19px; border-bottom: 1px solid #23435e; }
+.camera-info-header .camera-refresh { margin-top: 12px; }
+.camera-list { min-height: 0; overflow-y: auto; padding: 4px 19px 19px; scrollbar-width: thin; scrollbar-color: #426f99 #0c1929; }
+.camera-list::-webkit-scrollbar { width: 10px; }
+.camera-list::-webkit-scrollbar-track { background: #0c1929; }
+.camera-list::-webkit-scrollbar-thumb { border: 2px solid #0c1929; border-radius: 8px; background: #426f99; }
+.camera-list h3 { margin: 18px 0 8px; color: #d9edfb; font-size: 13px; }
+.camera-list ol { gap: 7px; margin: 8px 0 16px; }
+.camera-list .camera-refresh { text-align: left; }
+.camera-list .camera-refresh[aria-pressed="true"] { background: #138dc1; border-color: #84dfff; }
+@media (max-width: 850px) {
+  .camera-grid { grid-template-columns: 1fr; height: auto; }
+  .camera-preview { flex: none; aspect-ratio: 16 / 9; min-height: 200px; }
+  .camera-info { max-height: 420px; }
+  .camera-card footer { flex-direction: row; align-items: center; }
+}
