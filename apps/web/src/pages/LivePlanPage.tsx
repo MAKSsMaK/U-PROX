@@ -37,7 +37,6 @@ export function LivePlanPage() {
           <div className="filters">
             <select value={building} onChange={(event) => setBuilding(event.target.value)}>
               <option>Головна будівля</option>
-              <option>Складський корпус</option>
             </select>
             <select value={floor} onChange={(event) => setFloor(event.target.value)}>
               {floorOptions.map((option) => <option key={option}>{option}</option>)}

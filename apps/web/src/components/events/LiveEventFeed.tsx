@@ -175,7 +175,8 @@ export function LiveEventFeed({ collapsed, onShowObject, onToggle, view }: LiveE
           <p>{selected.floor} · прив’язаний до локального електронного шару</p>
           <button
             className="plan-details-action"
-            onClick={() => navigate(`/reports?create=1&accessPoint=${encodeURIComponent(selected.name)}`)}
+            disabled={selected.type !== 'door' || !selected.token}
+            onClick={() => navigate(`/reports?create=1&doorToken=${encodeURIComponent(selected.token ?? '')}`)}
             type="button"
           >
             Сформувати звіт за об’єктом

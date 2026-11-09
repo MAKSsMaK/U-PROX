@@ -27,7 +27,7 @@ type IntegrationState = { mode: 'mock' | 'uproxx'; setMode: (mode: 'mock' | 'upr
 
 export const useStore = create<AppState>((set) => ({
   building: 'Головна будівля',
-  floor: '3 поверх',
+  floor: '1 поверх',
   selected: undefined,
   setBuilding: (building) => set({ building }),
   setFloor: (floor) => set({ floor }),

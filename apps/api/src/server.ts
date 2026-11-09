@@ -8,6 +8,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import PDFDocument from 'pdfkit';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, ImageRun, HeadingLevel } from 'docx';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
@@ -766,6 +767,7 @@ const reportExportSchema = z.object({
   employeeTokens: z.array(z.string().min(1).max(128)).max(2_000).default([]),
   departments: z.array(z.string().min(1).max(300)).max(2_000).default([]),
   accessPoint: z.string().max(300).default(''),
+  doorToken: z.string().max(128).default(''),
 }).superRefine((value, context) => {
   if (value.from > value.to) context.addIssue({ code: z.ZodIssueCode.custom, message: 'The event range start must be before its end' });
 });
@@ -857,7 +859,7 @@ function nextEventToken(response: EventsSnapshot) {
  * journal is written to our disk; the brief cache below only coalesces equal
  * requests from open screens during a few seconds.
  */
-async function fetchEventsFromUproxx(from: number, to: number, limit: number, predicate?: (event: EventRecord) => boolean) {
+async function fetchEventsFromUproxx(from: number, to: number, limit: number, predicate?: (event: EventRecord) => boolean, requireComplete = false) {
   let startToken = '0';
   const seenTokens = new Set<string>();
   const collected = new Map<string, EventRecord>();
@@ -877,6 +879,9 @@ async function fetchEventsFromUproxx(from: number, to: number, limit: number, pr
     pages += 1;
     const oldest = Math.min(...events.map((event) => issuedMilliseconds(event.Issued)).filter(Boolean));
     const nextToken = nextEventToken(response as EventsSnapshot);
+    if (requireComplete && nextToken && oldest > from && (collected.size >= limit || pages >= 500)) {
+      throw new Error('Звіт перевищує ліміт подій. Виберіть коротший період.');
+    }
     if (!nextToken || oldest <= from || collected.size >= limit) break;
     startToken = nextToken;
   }
@@ -1012,28 +1017,31 @@ function collapseReportDuplicates(rows: ReportEventRow[]) {
 }
 
 async function getReportRows(input: z.infer<typeof reportExportSchema>) {
-  const source = await fetchEventsFromUproxx(input.from, input.to, UPROX_REPORT_MAX_EVENTS);
+  const source = await fetchEventsFromUproxx(input.from, input.to, UPROX_REPORT_MAX_EVENTS, undefined, true);
   const employeeTokens = new Set(input.employeeTokens);
   const departments = new Set(input.departments);
+  const catalog = input.doorToken ? await loadPlanCatalog() : undefined;
+  if (input.doorToken && catalog?.warnings.some((warning) => warning.startsWith('DoorGetList'))) throw new Error('Не вдалося отримати прив’язки дверей з U-PROX');
+  const door = catalog?.doors.find((item) => item.token === input.doorToken);
+  const doorEventTokens = new Set(door?.eventTokens ?? []);
   const rows = source.map(reportRow).filter((row) => {
     if (input.kind === 'security' && !isSecurityReportEvent(row.eventName)) return false;
     if (employeeTokens.size && (!row.employeeToken || !employeeTokens.has(row.employeeToken))) return false;
     if (departments.size && !departments.has(row.department)) return false;
-    if (input.accessPoint && input.accessPoint !== row.accessPoint) return false;
+    if (input.doorToken && (!row.senderToken || !doorEventTokens.has(row.senderToken))) return false;
+    if (!input.doorToken && input.accessPoint && input.accessPoint !== row.accessPoint) return false;
     return true;
   });
   return collapseReportDuplicates(rows);
-}
-
-function htmlEscape(value: string) {
-  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
 
 function groupReportRows(rows: ReportEventRow[]) {
   const groups = new Map<string, ReportEventRow[]>();
   for (const row of rows) {
     const key = row.employeeToken ?? `${row.employee}|${row.department}`;
-    groups.set(key, [...(groups.get(key) ?? []), row]);
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
   }
   return [...groups.values()];
 }
@@ -1154,21 +1162,39 @@ function reportFilterSummary(input: z.infer<typeof reportExportSchema>) {
   return filters.join(' · ') || 'Без додаткових фільтрів';
 }
 
-async function wordReportHtml(input: z.infer<typeof reportExportSchema>, rows: ReportEventRow[]) {
+async function wordReportDocx(input: z.infer<typeof reportExportSchema>, rows: ReportEventRow[]) {
+  const children: (Paragraph | Table)[] = [
+    new Paragraph({ text: reportTitle(input.kind), heading: HeadingLevel.TITLE }),
+    new Paragraph({ text: `Період: ${reportPeriod(input)}` }),
+    new Paragraph({ text: `Сформовано: ${reportDate(Date.now())}` }),
+    new Paragraph({ text: `Подій у вибірці: ${rows.length}` }),
+    new Paragraph({ text: reportFilterSummary(input), spacing: { after: 240 } }),
+  ];
+  const cell = (text: string, header = false) => new TableCell({
+    children: [new Paragraph({ children: [new TextRun({ text, bold: header, color: header ? 'FFFFFF' : '17212B', size: 18 })] })],
+    ...(header ? { shading: { fill: '09304B' } } : {}),
+  });
   const groups = groupReportRows(rows);
-  const sections: string[] = [];
-  for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
-    if (groupIndex > 0 && groupIndex % 20 === 0) await yieldReportWork();
-    const employeeEvents = groups[groupIndex];
-    const employee = employeeEvents[0];
+  for (let index = 0; index < groups.length; index += 1) {
+    if (index > 0 && index % 20 === 0) await yieldReportWork();
+    const events = groups[index];
+    const employee = events[0];
     const image = await imageForReport(employee);
-    const photo = image
-      ? `<img class="employee-photo" alt="${htmlEscape(employee.employee)}" src="data:${image.contentType};base64,${image.content.toString('base64')}">`
-      : `<span class="employee-photo fallback">${htmlEscape(employee.employee.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '—')}</span>`;
-    const events = employeeEvents.map((event) => `<tr><td>${htmlEscape(event.occurredAt)}</td><td>${htmlEscape(event.accessPoint)}</td><td>${htmlEscape(event.eventName)}</td><td>${htmlEscape(event.cardCode)}</td></tr>`).join('');
-    sections.push(`<section class="employee-section"><header>${photo}<div><h2>${htmlEscape(employee.employee)}</h2><p><b>Відділ:</b> ${htmlEscape(employee.department)}</p><p><b>Посада:</b> ${htmlEscape(employee.position)}</p></div></header><table><thead><tr><th>Дата та час</th><th>Місце</th><th>Подія</th><th>Ідентифікатор</th></tr></thead><tbody>${events}</tbody></table></section>`);
+    const header: (TextRun | ImageRun)[] = [];
+    if (image && (image.contentType === 'image/jpeg' || image.contentType === 'image/png')) {
+      header.push(new ImageRun({ data: image.content, type: image.contentType === 'image/png' ? 'png' : 'jpg', transformation: { width: 48, height: 48 } }));
+      header.push(new TextRun({ text: '  ' }));
+    }
+    header.push(new TextRun({ text: employee.employee, bold: true, size: 28 }));
+    children.push(new Paragraph({ children: header, pageBreakBefore: index > 0, spacing: { before: 180, after: 100 } }));
+    children.push(new Paragraph({ text: `Відділ: ${employee.department}` }));
+    children.push(new Paragraph({ text: `Посада: ${employee.position}`, spacing: { after: 160 } }));
+    children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+      new TableRow({ tableHeader: true, children: ['Дата та час', 'Місце', 'Подія', 'Ідентифікатор'].map((label) => cell(label, true)) }),
+      ...events.map((event) => new TableRow({ children: [event.occurredAt, event.accessPoint, event.eventName, event.cardCode].map((value) => cell(value)) })),
+    ] }));
   }
-  return `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>${htmlEscape(reportTitle(input.kind))}</title><style>body{font-family:Arial,sans-serif;color:#17212b;margin:28px}h1{font-size:23px}.summary{margin:18px 0;padding:12px;background:#edf6fa;border-left:4px solid #007db9}.employee-section{break-before:page;page-break-before:always;margin-top:30px}.employee-section:first-of-type{break-before:auto;page-break-before:auto}.employee-section header{display:flex;align-items:center;gap:14px;margin:22px 0 15px;padding:12px;background:#f1f7fa;border:1px solid #bed0db}.employee-section h2{margin:0 0 7px;font-size:17px}.employee-section p{margin:3px 0;color:#4b5b68;font-size:12px}.employee-section p b{color:#17212b}.employee-photo{width:54px;height:54px;object-fit:cover;border:1px solid #aabdc9;border-radius:50%;background:#fff}.fallback{display:inline-grid;place-items:center;font-weight:700}table{width:100%;border-collapse:collapse;font-size:10px}th{background:#09304b;color:#fff;text-align:left}th,td{padding:8px;border:1px solid #c9d5de;vertical-align:top}tr:nth-child(even){background:#f5f8fa}</style></head><body><h1>${htmlEscape(reportTitle(input.kind))}</h1><p>Період: ${htmlEscape(reportPeriod(input))}</p><p>Сформовано: ${htmlEscape(reportDate(Date.now()))}</p><div class="summary"><b>Подій у вибірці: ${rows.length}</b><br>${htmlEscape(reportFilterSummary(input))}</div>${sections.join('')}</body></html>`;
+  return Packer.toBuffer(new Document({ sections: [{ properties: {}, children }] }));
 }
 
 async function renderPdfReport(document: PDFKit.PDFDocument, input: z.infer<typeof reportExportSchema>, rows: ReportEventRow[]) {
@@ -1279,13 +1305,18 @@ app.post('/api/reports/export', {
   config: { rateLimit: { max: 4, timeWindow: '1 minute' } },
 }, async (request, reply) => {
   const input = reportExportSchema.parse(request.body);
-  const rows = await getReportRows(input);
+  let rows: ReportEventRow[];
+  try { rows = await getReportRows(input); }
+  catch (error) {
+    app.log.warn({ message: error instanceof Error ? error.message : 'Report generation failed' }, 'Report source unavailable');
+    return reply.code(502).send({ error: error instanceof Error && error.message.includes('ліміт подій') ? error.message : 'Не вдалося отримати дані звіту з U‑PROX.' });
+  }
   const filename = `${reportFileBase(input.kind)}-${new Date().toISOString().slice(0, 10)}`;
   if (input.format === 'word') {
-    const document = await wordReportHtml(input, rows);
+    const document = await wordReportDocx(input, rows);
     return reply
-      .header('Content-Disposition', `attachment; filename="${filename}.doc"`)
-      .type('application/msword; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="${filename}.docx"`)
+      .type('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
       .send(document);
   }
 
@@ -1301,6 +1332,7 @@ app.post('/api/reports/export', {
     await renderPdfReport(document, input, rows);
   } catch (error) {
     app.log.error({ error }, 'Unable to render report PDF');
+    reply.raw.destroy();
   } finally {
     document.end();
   }

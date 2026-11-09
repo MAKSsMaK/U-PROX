@@ -49,6 +49,7 @@ export type ReportExportRequest = {
   employeeTokens: string[];
   departments: string[];
   accessPoint: string;
+  doorToken?: string;
 };
 
 export async function downloadServerReport(input: ReportExportRequest) {
@@ -57,9 +58,12 @@ export async function downloadServerReport(input: ReportExportRequest) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!response.ok) throw new Error(`Backend returned HTTP ${response.status}`);
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(result.error || `Backend returned HTTP ${response.status}`);
+  }
   const disposition = response.headers.get('content-disposition') ?? '';
-  const fileName = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? `zvit.${input.format === 'pdf' ? 'pdf' : 'doc'}`;
+  const fileName = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? `zvit.${input.format === 'pdf' ? 'pdf' : 'docx'}`;
   return { blob: await response.blob(), fileName };
 }
 

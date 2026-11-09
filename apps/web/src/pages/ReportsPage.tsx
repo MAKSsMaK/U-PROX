@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { downloadServerReport, getPersonnel, getPlanCatalog, type PersonnelRecord } from '../api';
 import { DashboardLayout } from '../layouts/DashboardLayout';
 
-type ReportKind = 'access' | 'security' | 'worktime';
+type ReportKind = 'access' | 'security';
 type ReportExportFormat = 'pdf' | 'word';
 type ReportFilters = { employeeTokens: string[]; departments: string[]; accessPoint: string };
 type ReportDateRange = { from: string; to: string };
@@ -13,7 +13,6 @@ const emptyFilters: ReportFilters = { employeeTokens: [], departments: [], acces
 const reportCards: Array<{ kind: ReportKind; icon: string; title: string; description: string }> = [
   { kind: 'access', icon: '◷', title: 'Журнал проходів', description: 'Входи, виходи, дозволи та відмови за вибраний період.' },
   { kind: 'security', icon: '!', title: 'Безпекові події', description: 'Відмови, тривоги та події, що потребують уваги.' },
-  { kind: 'worktime', icon: '◴', title: 'Робочий час', description: 'Підсумок присутності на основі подій доступу.' },
 ];
 
 function dateTimeInputValue(date: Date) {
@@ -180,12 +179,10 @@ export function ReportsPage() {
   const personnel = personnelQuery.data?.personnel ?? [];
   const departments = personnelQuery.data?.departments ?? [];
   const invalidDraftRange = !draftRange.from || !draftRange.to || new Date(draftRange.from).getTime() > new Date(draftRange.to).getTime();
-  const accessPoints = useMemo(() => {
-    const catalogItems = catalogQuery.data ? [...catalogQuery.data.doors, ...catalogQuery.data.devices, ...catalogQuery.data.inputs] : [];
-    const names = new Set(catalogItems.map((item) => item.name));
-    if (draftFilters.accessPoint) names.add(draftFilters.accessPoint);
-    return [...names].filter((item) => item && item !== '—').sort((left, right) => left.localeCompare(right, 'uk-UA'));
-  }, [catalogQuery.data, draftFilters.accessPoint]);
+  const accessPoints = useMemo(() => [...(catalogQuery.data?.doors ?? [])]
+    .sort((left, right) => left.name.localeCompare(right.name, 'uk-UA')), [catalogQuery.data]);
+  const doorUnavailable = Boolean(draftFilters.accessPoint && (!catalogQuery.data || catalogQuery.isError || catalogQuery.data.warnings.some((warning) => warning.startsWith('DoorGetList')) || !accessPoints.some((door) => door.token === draftFilters.accessPoint)));
+  const missingDoorOption = doorUnavailable ? [{ value: draftFilters.accessPoint, label: catalogQuery.isFetching ? 'Завантаження дверей…' : 'Двері не знайдено — виберіть точку повторно' }] : [];
   const openReportModal = () => {
     setDraftKind(kind);
     setDraftRange(range);
@@ -203,7 +200,7 @@ export function ReportsPage() {
 
   useEffect(() => {
     if (searchParams.get('create') !== '1') return;
-    const accessPoint = searchParams.get('accessPoint') ?? '';
+    const accessPoint = searchParams.get('doorToken') ?? '';
     const nextFilters = { ...emptyFilters, accessPoint };
     setDraftKind('access');
     setDraftRange(rangeForHours(24));
@@ -225,7 +222,8 @@ export function ReportsPage() {
         to: new Date(range.to).getTime(),
         employeeTokens: filters.employeeTokens,
         departments: filters.departments,
-        accessPoint: filters.accessPoint,
+        accessPoint: accessPoints.find((door) => door.token === filters.accessPoint)?.name ?? '',
+        doorToken: filters.accessPoint,
       });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -234,8 +232,8 @@ export function ReportsPage() {
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
       setExportModalOpen(false);
-    } catch {
-      setExportError('Не вдалося сформувати звіт на сервері. Спробуйте ще раз.');
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Не вдалося сформувати звіт на сервері. Спробуйте ще раз.');
     } finally {
       setIsExporting(false);
     }
@@ -269,9 +267,9 @@ export function ReportsPage() {
             <DateTimePicker label="До" onChange={(value) => { setQuickPeriod(''); setDraftRange((current) => ({ ...current, to: value })); }} value={draftRange.to} />
             <label className="wide">Відділи<DepartmentMultiSelect departments={departments} onChange={(departments) => setDraftFilters((current) => ({ ...current, departments, employeeTokens: current.employeeTokens.filter((token) => departments.length === 0 || departments.includes(personnel.find((person) => person.token === token)?.department ?? '')) }))} selectedDepartments={draftFilters.departments} /></label>
             <label className="wide">Працівники<PersonnelMultiSelect departments={draftFilters.departments} onChange={(employeeTokens) => setDraftFilters((current) => ({ ...current, employeeTokens }))} personnel={personnel} selectedTokens={draftFilters.employeeTokens} /></label>
-            <label className="wide">Точка доступу / місце<CompactSelect ariaLabel="Точка доступу / місце" onChange={(value) => setDraftFilters((current) => ({ ...current, accessPoint: value }))} options={[{ value: '', label: 'Усі точки доступу' }, ...accessPoints.map((accessPoint) => ({ value: accessPoint, label: accessPoint }))]} value={draftFilters.accessPoint} /></label>
+            <label className="wide">Точка доступу / місце<CompactSelect ariaLabel="Точка доступу / місце" onChange={(value) => setDraftFilters((current) => ({ ...current, accessPoint: value }))} options={[{ value: '', label: 'Усі точки доступу' }, ...missingDoorOption, ...accessPoints.map((door) => ({ value: door.token, label: door.name }))]} value={draftFilters.accessPoint} /></label>
           </div>
-          <footer className="report-modal-footer"><button className="report-modal-reset" onClick={() => setDraftFilters(emptyFilters)} type="button">Очистити фільтри</button><span />{invalidDraftRange && <small className="report-range-error">Перевірте дату й час діапазону.</small>}<button className="personnel-cancel" onClick={() => setReportModalOpen(false)} type="button">Скасувати</button><button className="report-export" disabled={invalidDraftRange} onClick={generateReport} type="button">Сформувати</button></footer>
+          <footer className="report-modal-footer"><button className="report-modal-reset" onClick={() => setDraftFilters(emptyFilters)} type="button">Очистити фільтри</button><span />{invalidDraftRange && <small className="report-range-error">Перевірте дату й час діапазону.</small>}{doorUnavailable && <small className="report-range-error">Не вдалося підтвердити вибрані двері в U‑PROX.</small>}<button className="personnel-cancel" onClick={() => setReportModalOpen(false)} type="button">Скасувати</button><button className="report-export" disabled={invalidDraftRange || doorUnavailable} onClick={generateReport} type="button">Сформувати</button></footer>
         </section>
       </div>}
       {exportModalOpen && <div className="report-modal-backdrop" onMouseDown={() => { if (!isExporting) setExportModalOpen(false); }} role="presentation">
@@ -279,7 +277,7 @@ export function ReportsPage() {
           <header className="report-modal-header"><div><h2>Завантажити звіт</h2><p>Оберіть формат для «{activeReport.title}».</p></div><button aria-label="Закрити" disabled={isExporting} onClick={() => setExportModalOpen(false)} type="button">×</button></header>
           <div className="report-export-formats">
             <button className={exportFormat === 'pdf' ? 'report-format active' : 'report-format'} onClick={() => setExportFormat('pdf')} type="button"><b>PDF</b><span>Сервер сформує та завантажить готовий PDF-звіт.</span></button>
-            <button className={exportFormat === 'word' ? 'report-format active' : 'report-format'} onClick={() => setExportFormat('word')} type="button"><b>Word</b><span>Сервер сформує редагований файл Word із поточною вибіркою.</span></button>
+            <button className={exportFormat === 'word' ? 'report-format active' : 'report-format'} onClick={() => setExportFormat('word')} type="button"><b>Word (.docx)</b><span>Сервер сформує редагований файл Word із поточною вибіркою.</span></button>
           </div>
           <footer className="report-modal-footer"><span />{exportError && <small className="reports-error">{exportError}</small>}<button className="personnel-cancel" disabled={isExporting} onClick={() => setExportModalOpen(false)} type="button">Скасувати</button><button className="report-export" disabled={isExporting} onClick={downloadReport} type="button">{isExporting ? 'Формування на сервері…' : exportFormat === 'pdf' ? 'Завантажити PDF' : 'Завантажити Word'}</button></footer>
         </section>
