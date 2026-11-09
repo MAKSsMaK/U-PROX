@@ -192,7 +192,7 @@ export function ReportsPage() {
   };
   const generateReport = () => {
     setKind(draftKind);
-    setRange(draftRange);
+    setRange(quickPeriod ? rangeForHours(Number(quickPeriod)) : draftRange);
     setFilters(draftFilters);
     setReportModalOpen(false);
     setExportModalOpen(true);
@@ -205,7 +205,7 @@ export function ReportsPage() {
     setDraftKind('access');
     setDraftRange(rangeForHours(24));
     setDraftFilters(nextFilters);
-    setQuickPeriod('');
+    setQuickPeriod('24');
     setExportError('');
     setReportModalOpen(true);
     setSearchParams({}, { replace: true });
